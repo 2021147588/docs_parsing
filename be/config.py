@@ -1,0 +1,1 @@
+stopwords_file = '/root/parsing_docs/be/bp/services/tokenize_docs/stopwords/stopwords-ko.txt'

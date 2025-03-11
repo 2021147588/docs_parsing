@@ -8,10 +8,10 @@ def input_data(directory: str) -> List[str]:
     for root, dir, files in os.walk(directory):
         
         for file in files:
-            # 파일의 절대 경로를 생성하여 리스트에 추가
-            file_paths.append(file)
+            file_path = os.path.join(root, file)
+            file_paths.append(file_path)
 
     return file_paths
 
 if __name__ == "__main__":
-    print(input_data("/root/data"))
+    print(input_data("/root/parsing/data"))

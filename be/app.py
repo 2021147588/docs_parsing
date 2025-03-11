@@ -13,7 +13,7 @@ def after_request_callback(response):
 
 
 from bp import (
-    dbms, test
+    dbms, test, routes
 )
 
 blueprints = [
