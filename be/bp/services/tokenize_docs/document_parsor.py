@@ -16,11 +16,12 @@ class DocumentParser:
         self.extension = extension[1:]
         self.languages = ["eng", "kor"]
         self.strategy = "hi_res"
+        self.elements = []
         
     def _partition_documents(self) -> List[Element]:
         
         if self.extension == 'pdf':
-            elements = self._partition_pdf()
+            self.elements = self._partition_pdf()
         # elif self.extension == 'doc':
         #     elements = self._partition_doc()
         # elif self.extension == 'docx':
@@ -31,8 +32,9 @@ class DocumentParser:
         #     elements = self.partition_pptx()
         else:
             raise ValueError(f"Unsupported file extension: {self.extension}")
-    
-        return elements
+
+        
+        return self.elements
     
     def _partition_pdf(self) -> List[Element]:
         images_dir = os.path.join(self.file_dir, 'src')
@@ -107,7 +109,9 @@ class DocumentParser:
     def parse_doc_to_seg(self):
         elements = self._partition_documents()
         
-        return self.combine_elements(elements)
+        return self._combine_elements(elements) 
+    
+        
 if __name__=="__main__":
     pdf_file_path = '/root/parsing/data/deepmind 보고서.pdf'
     docx = '' 

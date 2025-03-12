@@ -6,7 +6,7 @@ from kiwipiepy import Kiwi
 import spacy
 import re
 
-from be.bp.views.tokens import SegmentTokens
+from be.bp.views.tokens import Token, SentenceTokens, SegmentTokens
 from be.config import stopwords_file
 
 pos_tag_dict = {
@@ -33,7 +33,8 @@ class WordTokenizer:
         self.kiwi = Kiwi()
         self.lang = lang
         self.stopword = self._make_stopword_set()
-    
+        self.token_positions = {}  # {token: 마지막 등장 인덱스} 저장
+
     def tokenization(self) -> List[Dict[str, SegmentTokens]]:
         
         if self.lang == 'kor': 
@@ -61,46 +62,41 @@ class WordTokenizer:
         
         return [s.strip() for s in sentences if s.strip()]
         
-    def _tokenize_sentence(self, sentence: str, seg_id: int): 
+    def _tokenize_sentence(self, start_index: int, sentence: str, seg_id: int) -> SentenceTokens: 
         
-        tokens = self.kiwi.tokenize(sentence)
+        words = sentence.split(' ')
 
-        seg_tokens = []
-        for t in tokens:
-            if t.form in self.stopword: continue # 불용어 제거
-            
-            if t.tag in pos_tag_dict.keys(): # 명사, 동사, 형용사 추출
-                seg_t = SegmentTokens(word=t.form, tag=pos_tag_dict[t.tag], lang=self.lang, seg_id=seg_id)
-                seg_tokens.append(seg_t)
-            elif t.tag in personal_information_tag_dict.keys(): # 개인정보 추출
-                seg_t = SegmentTokens(word=t.form, tag="개인 정보", lang=self.lang, seg_id=seg_id, personal_infromation=personal_information_tag_dict[t.tag])
-                seg_tokens.append(seg_t)
-        return seg_tokens
-    
-    def _calculate_token_gap(self, sentence_tokens:List[Dict[str, SegmentTokens]]):
-        """
-        동일한 단어가 문장에서 여러 번 등장할 경우, 앞서 나온 단어와의 위치 차이를 'gap' 키에 저장하는 함수.
-        :param sentence_tokens: 문장과 해당 문장의 토큰 리스트가 포함된 리스트
-        :return: 각 단어의 'gap' 값을 포함한 새로운 리스트
-        """
-        for sentence_data in sentence_tokens:
-            token_positions = {}  # 단어별 마지막 등장 위치 저장
-            for idx, token in enumerate(sentence_data["tokens"]):
-                word = token["word"]
 
-                if word in token_positions:
-                    # 이전 위치와의 차이를 gap으로 설정
-                    token["gap"] = idx - token_positions[word]
+        index = start_index # 단어 인덱스
+        sentence_tokens=[]
+        for word in words: 
+            tokens = self.kiwi.tokenize(word)
+            for t in tokens:
+                # 불용어 제거
+                if t.form in self.stopword: continue 
+
+                # 단어 유격 계산
+                if t.form in self.token_positions.keys(): 
+                    gap = index - self.token_positions[t.form]
                 else:
-                    # 처음 등장하는 단어는 gap을 0으로 설정
-                    token["gap"] = 0
-
-                # 단어의 마지막 등장 위치 업데이트
-                token_positions[word] = idx
-
-        return sentence_tokens
+                    gap = 0
+                    
+                self.token_positions[t.form] = index
+                    
+                if t.tag in pos_tag_dict.keys(): # 명사, 동사, 형용사 추출
+                    
+                    s_t = Token(idx=index, word=t.form, tag=pos_tag_dict[t.tag], lang=self.lang, seg_id=seg_id, gap=gap)
+                    sentence_tokens.append(s_t)
+                elif t.tag in personal_information_tag_dict.keys(): # 개인정보 추출
+                    s_t = Token(idx=index, word=t.form, tag="개인 정보", lang=self.lang, seg_id=seg_id, personal_infromation=personal_information_tag_dict[t.tag], gap=gap)
+                    sentence_tokens.append(s_t)
+            index+=1
+            
+        return SentenceTokens(sentence=sentence, tokens=sentence_tokens), index
     
-    def tokenization_kor(self) -> List[Dict[str, SegmentTokens]]:
+
+
+    def tokenization_kor(self) -> List[SegmentTokens]:
         """
         한국어 문장을 형태소 분석하고, 명사(Noun), 형용사, 동사(Verb), 개인정보보 토큰만 추출하는 함수
         :return: 문장과 해당 문장의 토큰 정보를 포함하는 리스트
@@ -111,8 +107,9 @@ class WordTokenizer:
             {'word': '선도', 'tag': 'noun', 'lang': 'kor', 'seg_id': 1, 'gap': 0}]}
         """
         
-        sentence_tokens = []
+        doc_tokens = []
         seg_i = 1 # 분할 index는 1부터 시작
+        start_index = 0 # 단어의 index
         for seg in self.segments:
              
             # 1. 문단을 문장으로 나눔
@@ -120,22 +117,65 @@ class WordTokenizer:
             
             # 2. 문장별로 kiwi를 돌림 & 명사, 동사 토큰만 추출
             for sentence in sentences:
-                seg_tokens = self._tokenize_sentence(sentence, seg_i)
-                
-            sentence_tokens.append({
-                    "sentence": sentence,
-                    "tokens": seg_tokens
-                })
+                sentence_token, index = self._tokenize_sentence(start_index, sentence, seg_i)
+                start_index = index+1
             seg_i+=1
-        result = self._calculate_token_gap(sentence_tokens)
             
-        return result
+            doc_tokens.append(SegmentTokens(segment_tokens =sentence_token))           
+        
+        return doc_tokens
+    
+    def _calculate_token_gap(self, segment_data:List[SegmentTokens]) -> List[SegmentTokens]:
+        """
+        동일한 단어가 문장에서 여러 번 등장할 경우, 앞서 나온 단어와의 위치 차이를 'gap' 키에 저장하는 함수.
+        
+        :param segment_data: 여러 개의 segment_tokens 리스트
+        :return: 'gap' 값을 추가한 segment_data
+        """
+        word_positions = {}  # {단어: 마지막 등장 인덱스} 저장
+
+        for segment in segment_data:
+            tokens = segment["segment_tokens"]["tokens"]
+            for token in tokens:
+                word = token["word"]
+                idx = token["idx"]
+
+                if word in word_positions:
+                    token["gap"] = idx - word_positions[word]  # 이전 등장 위치와 현재 위치 차이 저장
+                else:
+                    token["gap"] = 0  # 첫 번째 등장일 경우 gap=0
+
+                # 최신 등장 위치 업데이트 (전체 문서 기준)
+                word_positions[word] = idx  
+
+        return segment_data  
+
     
 if __name__=='__main__':
     segments_kor = [
         """
-        'Google DeepMind는 AI 분야를 선도하고, 또 선도하고, 계속 선도하고 있습니다.' """
+        'Google은 AI 분야를 선도하고, 또 선도하고, 계속 선도하고 있습니다.' """,
+        """
+        'Google은 AI 분야를 선도하고, 또 선도하고, 계속 선도하고 있습니다.' """,
+        """
+        'Google은 AI 분야를 선도하고, 또 선도하고, 계속 선도하고 있습니다.' """
     ]
     
     wt = WordTokenizer(segments_kor, 'kor')
-    print(wt.tokenization())
+    result = wt.tokenization()
+    print(result)
+    breakpoint()
+    
+    # sentence_data = {
+    #     "sentence": "저는 키위를 좋아하는 형태소 분석기 키위입니다.",
+    #     "tokens": [
+    #         {"token": "저", "tag": "대명사", "lang": "kor", "seg_id": 1, "personal_information": None},
+    #         {"token": "키위", "tag": "일반명사", "lang": "kor", "seg_id": 1, "personal_information": None},
+    #         {"token": "형태소", "tag": "일반명사", "lang": "kor", "seg_id": 1, "personal_information": None},
+    #         {"token": "분석기", "tag": "일반명사", "lang": "kor", "seg_id": 1, "personal_information": None},
+    #         {"token": "키위", "tag": "일반명사", "lang": "kor", "seg_id": 1, "personal_information": None},
+    #     ]
+    # }
+
+    # 첫 번째 문장이므로 start_index = 0
+    # print(wt._calculate_token_index(0, sentence_data))

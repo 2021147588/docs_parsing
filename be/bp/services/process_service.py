@@ -1,6 +1,11 @@
-from tokenize_docs.input_data import input_data
-from tokenize_docs.document_parsor import DocumentParser
-from tokenize_docs.word_tokenizer import WordTokenizer
+from typing import List, Dict
+import tqdm
+
+from be.bp.services.tokenize_docs.input_data import input_data
+from be.bp.services.tokenize_docs.document_parsor import DocumentParser
+from be.bp.services.tokenize_docs.word_tokenizer import WordTokenizer
+from be.bp.views.tokens import SegmentTokens
+
 class ProcessService:
     def __init__(self):
         pass
@@ -21,3 +26,8 @@ class ProcessService:
         
         return tokens_per_file
             
+            
+if __name__ =="__main__":
+    dir = '/root/parsing_docs/data'
+    process_service = ProcessService()
+    print(process_service.tokenize_docs(dir, 'kor'))

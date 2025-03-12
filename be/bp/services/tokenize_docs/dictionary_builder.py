@@ -16,7 +16,7 @@ class DictionaryBuilder:
     """
     
     def __init__(self, tokens: List[Dict[str, SegmentTokens]]):
-        
+         
         """
         param
         tokens: 전체 문서를 문단 단위로 """
@@ -26,24 +26,7 @@ class DictionaryBuilder:
         self.semantic_dict = []
         self.file_path = file_path
         self.doc_cate1, self.doc_cate2 = self._extract_category()
-        
-    def _make_stopword_set(self) -> set[str]:
-        """
-        기본 불용어 사전 제작작
-        """
-        with open(stopwords_file, 'r', encoding='utf-8') as f:
-            stopwords = set(f.read().splitlines())  # 불용어를 집합(set)으로 저장
-        return stopwords
-    
-    def _extract_category(self) -> tuple[str]:
-        """
-        상위디렉토리 두개(cate1, cate2) 반환
-        """
-        p = Path(self.file_pah).resolve()  # 절대 경로 변환
-        
-        return p.parents[1].name, p.parents[0].name  # 상위 두 개 디렉토리 이름 반환
 
-        
     def count_word_freq(self):
         
         
