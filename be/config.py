@@ -1,1 +1,1 @@
-stopwords_file = '/root/parsing_docs/be/bp/services/tokenize_docs/stopwords/stopwords-ko.txt'
+stopwords_file = '/root/docs_parsing/be/bp/services/tokenize_docs/stopwords/stopwords-ko.txt'

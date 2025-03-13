@@ -66,7 +66,6 @@ class WordTokenizer:
         
         words = sentence.split(' ')
 
-
         index = start_index # 단어 인덱스
         sentence_tokens=[]
         for word in words: 
@@ -94,7 +93,30 @@ class WordTokenizer:
             
         return SentenceTokens(sentence=sentence, tokens=sentence_tokens), index
     
+    def _calculate_token_gap(self, segment_data:List[SegmentTokens]) -> List[SegmentTokens]:
+        """
+        동일한 단어가 문장에서 여러 번 등장할 경우, 앞서 나온 단어와의 위치 차이를 'gap' 키에 저장하는 함수.
+        
+        :param segment_data: 여러 개의 segment_tokens 리스트
+        :return: 'gap' 값을 추가한 segment_data
+        """
+        word_positions = {}  # {단어: 마지막 등장 인덱스} 저장
 
+        for segment in segment_data:
+            tokens = segment["segment_tokens"]["tokens"]
+            for token in tokens:
+                word = token["word"]
+                idx = token["idx"]
+
+                if word in word_positions:
+                    token["gap"] = idx - word_positions[word]  # 이전 등장 위치와 현재 위치 차이 저장
+                else:
+                    token["gap"] = 0  # 첫 번째 등장일 경우 gap=0
+
+                # 최신 등장 위치 업데이트 (전체 문서 기준)
+                word_positions[word] = idx  
+
+        return segment_data 
 
     def tokenization_kor(self) -> List[SegmentTokens]:
         """
@@ -119,36 +141,12 @@ class WordTokenizer:
             for sentence in sentences:
                 sentence_token, index = self._tokenize_sentence(start_index, sentence, seg_i)
                 start_index = index+1
+                doc_tokens.append(SegmentTokens(segment_tokens =sentence_token))           
             seg_i+=1
             
-            doc_tokens.append(SegmentTokens(segment_tokens =sentence_token))           
         
         return doc_tokens
-    
-    def _calculate_token_gap(self, segment_data:List[SegmentTokens]) -> List[SegmentTokens]:
-        """
-        동일한 단어가 문장에서 여러 번 등장할 경우, 앞서 나온 단어와의 위치 차이를 'gap' 키에 저장하는 함수.
-        
-        :param segment_data: 여러 개의 segment_tokens 리스트
-        :return: 'gap' 값을 추가한 segment_data
-        """
-        word_positions = {}  # {단어: 마지막 등장 인덱스} 저장
-
-        for segment in segment_data:
-            tokens = segment["segment_tokens"]["tokens"]
-            for token in tokens:
-                word = token["word"]
-                idx = token["idx"]
-
-                if word in word_positions:
-                    token["gap"] = idx - word_positions[word]  # 이전 등장 위치와 현재 위치 차이 저장
-                else:
-                    token["gap"] = 0  # 첫 번째 등장일 경우 gap=0
-
-                # 최신 등장 위치 업데이트 (전체 문서 기준)
-                word_positions[word] = idx  
-
-        return segment_data  
+     
 
     
 if __name__=='__main__':

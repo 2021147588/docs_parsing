@@ -1,8 +1,8 @@
 from unstructured.partition.pdf import partition_pdf
-from unstructured.partition.ppt import partition_ppt
-from unstructured.partition.pptx import partition_pptx
-from unstructured.partition.xml import partition_xml
-from unstructured.partition.doc import partition_doc, partition_docx
+# from unstructured.partition.ppt import partition_ppt
+# from unstructured.partition.pptx import partition_pptx
+# from unstructured.partition.xml import partition_xml
+# from unstructured.partition.doc import partition_doc, partition_docx
 from unstructured.documents.elements import Element
 
 from typing import List
@@ -37,9 +37,9 @@ class DocumentParser:
         return self.elements
     
     def _partition_pdf(self) -> List[Element]:
-        images_dir = os.path.join(self.file_dir, 'src')
+        images_dir = '/root/docs_parsing/src'
         
-        if not os.path.exists(images_dir): os.makedirs(images_dir)
+        # if not os.path.exists(images_dir): os.makedirs(images_dir)
         
         elements = partition_pdf(
             filename=self.file_path,                  # mandatory
