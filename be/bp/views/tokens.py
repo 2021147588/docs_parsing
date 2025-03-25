@@ -1,26 +1,19 @@
-from typing import TypedDict, Optional, List
+from typing import Optional, List
+from pydantic import BaseModel, Field
 
-class Token(TypedDict):
+class Token(BaseModel):
     """
-    토큰
+    하나의 토큰 정보를 담는 모델입니다.
     """
-    idx: int # 문서 내 토큰 순서
-    token: str # 토큰
-    tag: str # 토큰 type (고유명사 or 일반명사 or 형용사 or 동사 or 개인정보보)
-    lang: str # eng or kor
-    seg_id: int # 분할 index
-    personal_information: Optional[str] # 개인정보 typer email, phone number 등등
-    gap: int
+    idx: int = Field(..., description="문서 내 토큰의 순서 인덱스")
+    word: str = Field(..., description="토큰 문자열")
+    tag: str = Field(..., description="토큰의 품사 태그 (예: 고유명사, 일반명사, 형용사, 동사 등)")
+    lang: str = Field(..., description="언어 정보 (예: kor, eng)")
+    seg_id: int = Field(..., description="문서 내 분할 인덱스 ID")
+    pii_type: Optional[str] = Field(None, description="개인정보 유형 (예: email, phone number 등)")
 
-class SentenceTokens(TypedDict):
+class SegmentTokens(BaseModel):
     """
-    문장별별 토큰
+    하나의 세그먼트(분할) 안에 있는 토큰 리스트를 담는 모델입니다.
     """
-    sentence: str
-    tokens: List[Token]
-    
-class SegmentTokens(TypedDict):
-    """
-    분할별 토큰
-    """
-    segment_tokens: List[SentenceTokens]
+    segment_tokens: List[Token] = Field(..., description="해당 세그먼트 내의 토큰 리스트")

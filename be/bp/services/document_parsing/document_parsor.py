@@ -53,42 +53,42 @@ class DocumentParser:
         
         return elements
     
-    def _partition_doc(self) -> List[Element]:
-        elements = partition_doc(
-            filename=self.file_path,
-            languages=self.languages,
-            strategy=self.strategy
-        )
-        return elements
+    # def _partition_doc(self) -> List[Element]:
+    #     elements = partition_doc(
+    #         filename=self.file_path,
+    #         languages=self.languages,
+    #         strategy=self.strategy
+    #     )
+    #     return elements
 
-    def _partition_docx(self) -> List[Element]:
-        elements = partition_docx(
-            filename=self.file_path,
-            languages=self.languages,
-            strategy=self.strategy
-        )
-        return elements
+    # def _partition_docx(self) -> List[Element]:
+    #     elements = partition_docx(
+    #         filename=self.file_path,
+    #         languages=self.languages,
+    #         strategy=self.strategy
+    #     )
+    #     return elements
     
-    def _partition_ppt(self) -> List[Element]:
-        elements = partition_ppt(
-            filename=self.file_path,
-            strategy=self.strategy
-        )
-        return elements
+    # def _partition_ppt(self) -> List[Element]:
+    #     elements = partition_ppt(
+    #         filename=self.file_path,
+    #         strategy=self.strategy
+    #     )
+    #     return elements
     
-    def _partition_pptx(self) -> List[Element]:
-        elements = partition_pptx(
-            filename=self.file_path,
-            strategy=self.strategy
-        )
-        return elements
+    # def _partition_pptx(self) -> List[Element]:
+    #     elements = partition_pptx(
+    #         filename=self.file_path,
+    #         strategy=self.strategy
+    #     )
+    #     return elements
     
-    def _partition_xml(self) -> List[Element]:
-        elements = partition_xml(
-            filename=self.file_path,
-            xml_keep_tags=True
-        )
-        return elements
+    # def _partition_xml(self) -> List[Element]:
+    #     elements = partition_xml(
+    #         filename=self.file_path,
+    #         xml_keep_tags=True
+    #     )
+    #     return elements
     
     def _combine_elements(self, elements: List[Element]) -> List[str]:
         result = []

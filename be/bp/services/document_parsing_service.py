@@ -1,17 +1,17 @@
 from typing import List, Dict
-import tqdm
-
-from be.bp.services.tokenize_docs.input_data import input_data
-from be.bp.services.tokenize_docs.document_parsor import DocumentParser
-from be.bp.services.tokenize_docs.word_tokenizer import WordTokenizer
-from be.bp.views.tokens import SegmentTokens
 import json
 
-class ProcessService:
+from be.bp.services.document_parsing.input_data import input_data
+from be.bp.services.document_parsing.document_parsor import DocumentParser
+from be.bp.services.document_parsing.word_tokenizer import WordTokenizer
+from be.bp.services.document_parsing.analysis_document import compute_token_stats_by_word
+from be.bp.views.tokens import SegmentTokens
+
+class DocumentParsingService:
     def __init__(self):
         pass
     
-    def tokenize_docs(self, path:str, lang: str) -> List[List[Dict[str, SegmentTokens]]]:
+    def tokenize_documents(self, path:str, lang: str) -> List[List[Dict[str, SegmentTokens]]]:
         file_paths = input_data(dir)
         tokens_per_file = []
             
@@ -24,12 +24,16 @@ class ProcessService:
         tokens = tokenizer.tokenization()
         tokens_per_file.append(tokens)
         
+        cate1 = 'abc'
+        cate2 = 'abcd'
+        # 3. 단어 분석
+        result = compute_token_stats_by_word(tokens_per_file, path, path, cate1, cate2)
         return tokens_per_file
-            
-            
+        
+        
 if __name__ =="__main__":
-    dir = '/root/docs_parsing/data/report.pdf'
-    process_service = ProcessService()
+    dir = 'D:/2025/parsing/docs_parsing/data/report.pdf'
+    process_service = DocumentParsingService()
     data = process_service.tokenize_docs(dir, 'kor')
 
     # JSON 파일로 저장
