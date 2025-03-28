@@ -4,7 +4,9 @@ from kiwipiepy import Kiwi
 
 from be.bp.views.tokens import Token, SegmentTokens
 from be.config import stopwords_file
+from be.bp.utils.loggers import setup_logger
 
+logger = setup_logger()
 pos_tag_dict = {
     "NNG": "noun",        # 일반 명사
     "NNP": "proper_noun",  # 고유 명사
@@ -44,7 +46,7 @@ class WordTokenizer:
     
     def _make_stopword_set(self) -> set[str]:
         """
-        기본 불용어 사전 제작작
+        기본 불용어 사전 제작
         """
         with open(stopwords_file, 'r', encoding='utf-8') as f:
             stopwords = set(f.read().splitlines())  # 불용어를 집합(set)으로 저장
@@ -72,7 +74,7 @@ class WordTokenizer:
                     s_t = Token(idx=index, word=t.form, tag="개인 정보", lang=self.lang, seg_id=seg_id, personal_infromation=personal_information_tag_dict[t.tag])
                     seg_tokens.append(s_t)
             index+=1
-            
+
         return SegmentTokens(segment_tokens=seg_tokens), index
     
 
@@ -91,12 +93,15 @@ class WordTokenizer:
         doc_tokens = []
         seg_i = 1 # 분할 index는 1부터 시작
         start_index = 0 # 단어의 index
+        logger.info(f"[word_tokenizer.py] 문서 토큰화 시작")
+
         for seg in self.segments:
             seg_tokens, index = self._tokenize_seg(start_index, seg, seg_i)
             start_index = index+1
             doc_tokens.append(seg_tokens)           
             seg_i+=1
-            
+        logger.info(f"[word_tokenizer.py] 문서 토큰화 완료. {len(doc_tokens)}개의 문서 토큰 생성")
+
         
         return doc_tokens
      

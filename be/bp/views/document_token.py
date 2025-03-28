@@ -6,7 +6,7 @@ class DocumentToken(BaseModel):
     # 문서 토큰 테이블 
     value: str = Field(..., description="문서 내 등장하는 단어")
     document_name: str = Field(..., description="해당 단어가 포함된 문서의 이름")
-    col_id: List[int] = Field(..., description="단어가 속한 문서 내 분할 정보 (seg_id 목록)")
+    col_id: int = Field(..., description="단어가 속한 문서 내 분할 정보 ")
     word_type: str = Field(..., description="단어의 품사 (예: 명사, 동사 등)")
     cate1: str = Field(..., description="문서의 주요 분류 1")
     cate2: str = Field(..., description="문서의 주요 분류 2")
@@ -24,3 +24,4 @@ class DocumentToken(BaseModel):
     gap_avg: float = Field(..., description="해당 단어 유격의 평균값")
     gap_sd: float = Field(..., description="해당 단어 유격의 편차값")
     index_list: List[int] = Field(..., description="단어의 유격값 리스트 (등장 인덱스 리스트)")
+    index: int

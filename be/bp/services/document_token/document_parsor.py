@@ -8,6 +8,11 @@ from unstructured.documents.elements import Element
 from typing import List
 import os
 
+
+from bp.utils.loggers import setup_logger
+
+logger = setup_logger()
+
 class DocumentParser:
 
     def __init__(self, file_path: str):
@@ -40,7 +45,7 @@ class DocumentParser:
         images_dir = '/root/docs_parsing/src'
         
         # if not os.path.exists(images_dir): os.makedirs(images_dir)
-        
+        logger.info(f"[document_parsor.py]{self.file_path} 문서 기본 파싱")
         elements = partition_pdf(
             filename=self.file_path,                  # mandatory
             strategy=self.strategy,                                     # mandatory to use ``hi_res`` strategy
@@ -50,7 +55,7 @@ class DocumentParser:
             extract_image_block_output_dir=images_dir,  # optional - only works when ``extract_image_block_to_payload=False``
             content_type="application/pdf", languages=self.languages
             )
-        
+        logger.info(f"[document_parsor.py]{len(elements)}개의 분할 생성")
         return elements
     
     # def _partition_doc(self) -> List[Element]:
