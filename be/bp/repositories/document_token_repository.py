@@ -54,7 +54,7 @@ class DocumentTokenRepository:
         self.cursor.execute(create_table_query)
     
 
-    def insert_all_document_tokens(self, document_tokens_list: List[DocumentToken]) -> int:
+    def insert_all_document_tokens(self, document_tokens_list: List[DocumentToken]) -> tuple[int, List[str]]:
         try: 
             query = """
             INSERT INTO document_tokens (
@@ -75,11 +75,11 @@ class DocumentTokenRepository:
                 (
                     token.value,
                     token.document_name,
-                    json.dumps(token.col_id),  # List[int] → JSON 문자열
+                    token.col_id,  # List[int] → JSON 문자열
                     token.word_type,
                     token.cate1,
                     token.cate2,
-                    token.document_path,
+                    token.document_path.replace("\\", "/"),
                     token.pii_type,
 
                     token.total_cnt,
@@ -100,8 +100,11 @@ class DocumentTokenRepository:
 
             self.cursor.executemany(query, values)
             self.conn.commit()
+            row_count = self.cursor.rowcount 
+            document_names = {token.document_name for token in document_tokens_list}
 
-            return self.cursor.rowcount
+            return row_count, list(document_names)
+        
         except Exception as e:
             logger.error(f"[데이터 삽입 오류] {e}")
             self.conn.rollback()
@@ -169,35 +172,108 @@ class DocumentTokenRepository:
 
         return results
     
+    def get_tokens_by_document_path(self, document_path: str) -> List[DocumentToken]:
+        """
+        특정 document_path를 가진 모든 DocumentToken을 조회하여 반환합니다.
+
+        Args:
+            document_path (str): 조회할 document_path.
+
+        Returns:
+            List[DocumentToken]: 조회된 DocumentToken 객체 리스트.
+        """
+        try:
+            document_path = document_path.replace('\\', '\\\\')
+            query = "SELECT * FROM document_tokens WHERE document_path = %s"
+            self.cursor.execute(query, (document_path,))
+            rows = self.cursor.fetchall()
+
+            # 컬럼 이름 가져오기
+            columns = [desc[0] for desc in self.cursor.description]
+            results = []
+
+            for row in rows:
+                row_dict = dict(zip(columns, row))
+
+                # JSON 필드 복원
+                row_dict['index_list'] = json.loads(row_dict['index_list']) if isinstance(row_dict['index_list'], str) else list(row_dict['index_list'])
+
+                # Pydantic 모델로 변환
+                token = DocumentToken(**row_dict)
+                results.append(token)
+
+            return results
+
+        except Exception as e:
+            logger.error(f"[데이터 조회 오류] {e}")
+            raise
+    
+    def get_tokens_by_word_and_document_path(self, word: str, seg_id:int, document_path: str) -> List[DocumentToken]:
+        """
+        특정 단어와 document_path를 가진 DocumentToken을 조회하여 반환합니다.
+
+        Args:
+            word (str): 조회할 단어.
+            document_path (str): 조회할 document_path.
+
+        Returns:
+            List[DocumentToken]: 조회된 DocumentToken 객체 리스트.
+        """
+        try:
+            query = "SELECT * FROM document_tokens WHERE value = %s AND document_path = %s AND col_id = %s"
+            self.cursor.execute(query, (word, document_path, seg_id))
+            rows = self.cursor.fetchall()
+
+            # 컬럼 이름 가져오기
+            columns = [desc[0] for desc in self.cursor.description]
+            results = []
+
+            for row in rows:
+                row_dict = dict(zip(columns, row))
+
+                # JSON 필드 복원
+                row_dict['index_list'] = json.loads(row_dict['index_list']) if isinstance(row_dict['index_list'], str) else list(row_dict['index_list'])
+
+                # Pydantic 모델로 변환
+                token = DocumentToken(**row_dict)
+                results.append(token)
+            logger.info(f"[조회된 데이터 개수] {len(results)}")
+
+            return results
+
+        except Exception as e:
+            logger.error(f"[데이터 조회 오류] {e}")
+            raise
+
     def close(self):
         self.conn.close()  # 명시적으로 닫는 메서드 정의
 if __name__=="__main__":
     
-    # document_token_list = [
-    #     {'value': 'Google', 'document_name': 'AGI', 'col_id': 1, 'word_type': 'alphabet', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 1, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 0.0, 'gap_sd': 0.0, 'index_list': [0], 'index': 0},
-    #     {'value': 'AI', 'document_name': 'AGI', 'col_id': 1, 'word_type': 'alphabet', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 1, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 0.0, 'gap_sd': 0.0, 'index_list': [1], 'index': 1},
-    #     {'value': '분야', 'document_name': 'AGI', 'col_id': 1, 'word_type': 'noun', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 1, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 0.0, 'gap_sd': 0.0, 'index_list': [2], 'index': 2},
-    #     {'value': '선도', 'document_name': 'AGI', 'col_id': 1, 'word_type': 'noun', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 3, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 2.0, 'gap_sd': 0.0, 'index_list': [3, 5, 7], 'index': 7},
-    #     {'value': '있', 'document_name': 'AGI', 'col_id': 1, 'word_type': 'adjective', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 1, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 0.0, 'gap_sd': 0.0, 'index_list': [8], 'index': 8},
-    #     {'value': 'Google', 'document_name': 'AGI', 'col_id': 2, 'word_type': 'alphabet', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 1, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 0.0, 'gap_sd': 0.0, 'index_list': [10], 'index': 10},
-    #     {'value': 'AI', 'document_name': 'AGI', 'col_id': 2, 'word_type': 'alphabet', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 1, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 0.0, 'gap_sd': 0.0, 'index_list': [11], 'index': 11},
-    #     {'value': '분야', 'document_name': 'AGI', 'col_id': 2, 'word_type': 'noun', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 1, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 0.0, 'gap_sd': 0.0, 'index_list': [12], 'index': 12},
-    #     {'value': '선도', 'document_name': 'AGI', 'col_id': 2, 'word_type': 'noun', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 2, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 4.0, 'gap_sd': 0.0, 'index_list': [13, 17], 'index': 17},
-    #     {'value': '있', 'document_name': 'AGI', 'col_id': 2, 'word_type': 'adjective', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 1, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 0.0, 'gap_sd': 0.0, 'index_list': [18], 'index': 18},
-    #     {'value': 'Google', 'document_name': 'AGI', 'col_id': 3, 'word_type': 'alphabet', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 1, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 0.0, 'gap_sd': 0.0, 'index_list': [20], 'index': 20},
-    #     {'value': 'AI', 'document_name': 'AGI', 'col_id': 3, 'word_type': 'alphabet', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 1, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 0.0, 'gap_sd': 0.0, 'index_list': [21], 'index': 21},
-    #     {'value': '선도', 'document_name': 'AGI', 'col_id': 3, 'word_type': 'noun', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 1, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 0.0, 'gap_sd': 0.0, 'index_list': [23], 'index': 23},
-    #     {'value': '있', 'document_name': 'AGI', 'col_id': 3, 'word_type': 'adjective', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 1, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 0.0, 'gap_sd': 0.0, 'index_list': [28], 'index': 28},
-    #         ]
-    # document_token_objects: List[DocumentToken] = [DocumentToken(**item) for item in document_token_list]
+    document_token_list = [
+        {'value': 'Google', 'document_name': 'AGI', 'col_id': 1, 'word_type': 'alphabet', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 1, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 0.0, 'gap_sd': 0.0, 'index_list': [0], 'index': 0},
+        {'value': 'AI', 'document_name': 'AGI', 'col_id': 1, 'word_type': 'alphabet', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 1, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 0.0, 'gap_sd': 0.0, 'index_list': [1], 'index': 1},
+        {'value': '분야', 'document_name': 'AGI', 'col_id': 1, 'word_type': 'noun', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 1, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 0.0, 'gap_sd': 0.0, 'index_list': [2], 'index': 2},
+        {'value': '선도', 'document_name': 'AGI', 'col_id': 1, 'word_type': 'noun', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 3, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 2.0, 'gap_sd': 0.0, 'index_list': [3, 5, 7], 'index': 7},
+        {'value': '있', 'document_name': 'AGI', 'col_id': 1, 'word_type': 'adjective', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 1, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 0.0, 'gap_sd': 0.0, 'index_list': [8], 'index': 8},
+        {'value': 'Google', 'document_name': 'AGI', 'col_id': 2, 'word_type': 'alphabet', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 1, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 0.0, 'gap_sd': 0.0, 'index_list': [10], 'index': 10},
+        {'value': 'AI', 'document_name': 'AGI', 'col_id': 2, 'word_type': 'alphabet', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 1, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 0.0, 'gap_sd': 0.0, 'index_list': [11], 'index': 11},
+        {'value': '분야', 'document_name': 'AGI', 'col_id': 2, 'word_type': 'noun', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 1, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 0.0, 'gap_sd': 0.0, 'index_list': [12], 'index': 12},
+        {'value': '선도', 'document_name': 'AGI', 'col_id': 2, 'word_type': 'noun', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 2, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 4.0, 'gap_sd': 0.0, 'index_list': [13, 17], 'index': 17},
+        {'value': '있', 'document_name': 'AGI', 'col_id': 2, 'word_type': 'adjective', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 1, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 0.0, 'gap_sd': 0.0, 'index_list': [18], 'index': 18},
+        {'value': 'Google', 'document_name': 'AGI', 'col_id': 3, 'word_type': 'alphabet', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 1, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 0.0, 'gap_sd': 0.0, 'index_list': [20], 'index': 20},
+        {'value': 'AI', 'document_name': 'AGI', 'col_id': 3, 'word_type': 'alphabet', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 1, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 0.0, 'gap_sd': 0.0, 'index_list': [21], 'index': 21},
+        {'value': '선도', 'document_name': 'AGI', 'col_id': 3, 'word_type': 'noun', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 1, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 0.0, 'gap_sd': 0.0, 'index_list': [23], 'index': 23},
+        {'value': '있', 'document_name': 'AGI', 'col_id': 3, 'word_type': 'adjective', 'cate1': '기술', 'cate2': 'AI', 'document_path': 'D:/2025/parsing', 'pii_type': None, 'total_cnt': None, 'domain_cnt': None, 'cate1_cnt': None, 'cate2_cnt': None, 'doc_cnt': None, 'col_cnt': 1, 'regi_date': datetime.date(2025, 3, 26), 'gap_avg': 0.0, 'gap_sd': 0.0, 'index_list': [28], 'index': 28},
+            ]
+    document_token_objects: List[DocumentToken] = [DocumentToken(**item) for item in document_token_list]
 
     document_token_repository = DocumentTokenRepository()
+    r_c, document_name = document_token_repository.insert_all_document_tokens(document_token_objects)
+    print(r_c,document_name)
+    breakpoint()
+    document_token_repository.close()  # 연결 닫기!
+    # document_token_list_updated = [DocumentToken(value='Google', document_name='AGI', col_id=1, word_type='alphabet', cate1='기술', cate2='AI', document_path='D:/2025/parsing', pii_type=None, total_cnt=3, domain_cnt=3, cate1_cnt=3, cate2_cnt=3, doc_cnt=3, col_cnt=1, regi_date=datetime.date(2025, 3, 26), gap_avg=0.0, gap_sd=0.0, index_list=[0], index=0), DocumentToken(value='AI', document_name='AGI', col_id=1, word_type='alphabet', cate1='기술', cate2='AI', document_path='D:/2025/parsing', pii_type=None, total_cnt=2, domain_cnt=2, cate1_cnt=2, cate2_cnt=2, doc_cnt=2, col_cnt=1, regi_date=datetime.date(2025, 3, 26), gap_avg=0.0, gap_sd=0.0, index_list=[1], index=1), DocumentToken(value='분야', document_name='AGI', col_id=1, word_type='noun', cate1='기술', cate2='AI', document_path='D:/2025/parsing', pii_type=None, total_cnt=2, domain_cnt=2, cate1_cnt=2, cate2_cnt=2, doc_cnt=2, col_cnt=1, regi_date=datetime.date(2025, 3, 26), gap_avg=0.0, gap_sd=0.0, index_list=[2], index=2), DocumentToken(value='선도', document_name='AGI', col_id=1, word_type='noun', cate1='기술', cate2='AI', document_path='D:/2025/parsing', pii_type=None, total_cnt=6, domain_cnt=6, cate1_cnt=6, cate2_cnt=6, doc_cnt=6, col_cnt=3, regi_date=datetime.date(2025, 3, 26), gap_avg=2.0, gap_sd=0.0, index_list=[3, 5, 7], index=7), DocumentToken(value='있', document_name='AGI', col_id=1, word_type='adjective', cate1='기술', cate2='AI', document_path='D:/2025/parsing', pii_type=None, total_cnt=3, domain_cnt=3, cate1_cnt=3, cate2_cnt=3, doc_cnt=3, col_cnt=1, regi_date=datetime.date(2025, 3, 26), gap_avg=0.0, gap_sd=0.0, index_list=[8], index=8), DocumentToken(value='Google', document_name='AGI', col_id=2, word_type='alphabet', cate1='기술', cate2='AI', document_path='D:/2025/parsing', pii_type=None, total_cnt=3, domain_cnt=3, cate1_cnt=3, cate2_cnt=3, doc_cnt=3, col_cnt=1, regi_date=datetime.date(2025, 3, 26), gap_avg=0.0, gap_sd=0.0, index_list=[10], index=10), DocumentToken(value='AI', document_name='AGI', col_id=2, word_type='alphabet', cate1='기술', cate2='AI', document_path='D:/2025/parsing', pii_type=None, total_cnt=2, domain_cnt=2, cate1_cnt=2, cate2_cnt=2, doc_cnt=2, col_cnt=1, regi_date=datetime.date(2025, 3, 26), gap_avg=0.0, gap_sd=0.0, index_list=[11], index=11), DocumentToken(value='분야', document_name='AGI', col_id=2, word_type='noun', cate1='기술', cate2='AI', document_path='D:/2025/parsing', pii_type=None, total_cnt=2, domain_cnt=2, cate1_cnt=2, cate2_cnt=2, doc_cnt=2, col_cnt=1, regi_date=datetime.date(2025, 3, 26), gap_avg=0.0, gap_sd=0.0, index_list=[12], index=12), DocumentToken(value='선도', document_name='AGI', col_id=2, word_type='noun', cate1='기술', cate2='AI', document_path='D:/2025/parsing', pii_type=None, total_cnt=6, domain_cnt=6, cate1_cnt=6, cate2_cnt=6, doc_cnt=6, col_cnt=2, regi_date=datetime.date(2025, 3, 26), gap_avg=4.0, gap_sd=0.0, index_list=[13, 17], index=17), DocumentToken(value='있', document_name='AGI', col_id=2, word_type='adjective', cate1='기술', cate2='AI', document_path='D:/2025/parsing', pii_type=None, total_cnt=3, domain_cnt=3, cate1_cnt=3, cate2_cnt=3, doc_cnt=3, col_cnt=1, regi_date=datetime.date(2025, 3, 26), gap_avg=0.0, gap_sd=0.0, index_list=[18], index=18), DocumentToken(value='Google', document_name='AGI', col_id=3, word_type='alphabet', cate1='기술', cate2='AI', document_path='D:/2025/parsing', pii_type=None, total_cnt=3, domain_cnt=3, cate1_cnt=3, cate2_cnt=3, doc_cnt=3, col_cnt=1, regi_date=datetime.date(2025, 3, 26), gap_avg=0.0, gap_sd=0.0, index_list=[20], index=20), DocumentToken(value='선도', document_name='AGI', col_id=3, word_type='noun', cate1='기술', cate2='AI', document_path='D:/2025/parsing', pii_type=None, total_cnt=6, domain_cnt=6, cate1_cnt=6, cate2_cnt=6, doc_cnt=6, col_cnt=1, regi_date=datetime.date(2025, 3, 26), gap_avg=0.0, gap_sd=0.0, index_list=[23], index=23), DocumentToken(value='있', document_name='AGI', col_id=3, word_type='adjective', cate1='기술', cate2='AI', document_path='D:/2025/parsing', pii_type=None, total_cnt=3, domain_cnt=3, cate1_cnt=3, cate2_cnt=3, doc_cnt=3, col_cnt=1, regi_date=datetime.date(2025, 3, 26), gap_avg=0.0, gap_sd=0.0, index_list=[28], index=28)]
+    
+    # print(document_token_repository.update_token_counts(document_token_list_updated))
+    
     # print(document_token_repository.select_all_tokens())
-    # # r_c = document_token_repository.insert_all_document_tokens(document_token_objects)
-    # # print(r_c)
-    # document_token_repository.close()  # 연결 닫기!
-    document_token_list_updated = [DocumentToken(value='Google', document_name='AGI', col_id=1, word_type='alphabet', cate1='기술', cate2='AI', document_path='D:/2025/parsing', pii_type=None, total_cnt=3, domain_cnt=3, cate1_cnt=3, cate2_cnt=3, doc_cnt=3, col_cnt=1, regi_date=datetime.date(2025, 3, 26), gap_avg=0.0, gap_sd=0.0, index_list=[0], index=0), DocumentToken(value='AI', document_name='AGI', col_id=1, word_type='alphabet', cate1='기술', cate2='AI', document_path='D:/2025/parsing', pii_type=None, total_cnt=2, domain_cnt=2, cate1_cnt=2, cate2_cnt=2, doc_cnt=2, col_cnt=1, regi_date=datetime.date(2025, 3, 26), gap_avg=0.0, gap_sd=0.0, index_list=[1], index=1), DocumentToken(value='분야', document_name='AGI', col_id=1, word_type='noun', cate1='기술', cate2='AI', document_path='D:/2025/parsing', pii_type=None, total_cnt=2, domain_cnt=2, cate1_cnt=2, cate2_cnt=2, doc_cnt=2, col_cnt=1, regi_date=datetime.date(2025, 3, 26), gap_avg=0.0, gap_sd=0.0, index_list=[2], index=2), DocumentToken(value='선도', document_name='AGI', col_id=1, word_type='noun', cate1='기술', cate2='AI', document_path='D:/2025/parsing', pii_type=None, total_cnt=6, domain_cnt=6, cate1_cnt=6, cate2_cnt=6, doc_cnt=6, col_cnt=3, regi_date=datetime.date(2025, 3, 26), gap_avg=2.0, gap_sd=0.0, index_list=[3, 5, 7], index=7), DocumentToken(value='있', document_name='AGI', col_id=1, word_type='adjective', cate1='기술', cate2='AI', document_path='D:/2025/parsing', pii_type=None, total_cnt=3, domain_cnt=3, cate1_cnt=3, cate2_cnt=3, doc_cnt=3, col_cnt=1, regi_date=datetime.date(2025, 3, 26), gap_avg=0.0, gap_sd=0.0, index_list=[8], index=8), DocumentToken(value='Google', document_name='AGI', col_id=2, word_type='alphabet', cate1='기술', cate2='AI', document_path='D:/2025/parsing', pii_type=None, total_cnt=3, domain_cnt=3, cate1_cnt=3, cate2_cnt=3, doc_cnt=3, col_cnt=1, regi_date=datetime.date(2025, 3, 26), gap_avg=0.0, gap_sd=0.0, index_list=[10], index=10), DocumentToken(value='AI', document_name='AGI', col_id=2, word_type='alphabet', cate1='기술', cate2='AI', document_path='D:/2025/parsing', pii_type=None, total_cnt=2, domain_cnt=2, cate1_cnt=2, cate2_cnt=2, doc_cnt=2, col_cnt=1, regi_date=datetime.date(2025, 3, 26), gap_avg=0.0, gap_sd=0.0, index_list=[11], index=11), DocumentToken(value='분야', document_name='AGI', col_id=2, word_type='noun', cate1='기술', cate2='AI', document_path='D:/2025/parsing', pii_type=None, total_cnt=2, domain_cnt=2, cate1_cnt=2, cate2_cnt=2, doc_cnt=2, col_cnt=1, regi_date=datetime.date(2025, 3, 26), gap_avg=0.0, gap_sd=0.0, index_list=[12], index=12), DocumentToken(value='선도', document_name='AGI', col_id=2, word_type='noun', cate1='기술', cate2='AI', document_path='D:/2025/parsing', pii_type=None, total_cnt=6, domain_cnt=6, cate1_cnt=6, cate2_cnt=6, doc_cnt=6, col_cnt=2, regi_date=datetime.date(2025, 3, 26), gap_avg=4.0, gap_sd=0.0, index_list=[13, 17], index=17), DocumentToken(value='있', document_name='AGI', col_id=2, word_type='adjective', cate1='기술', cate2='AI', document_path='D:/2025/parsing', pii_type=None, total_cnt=3, domain_cnt=3, cate1_cnt=3, cate2_cnt=3, doc_cnt=3, col_cnt=1, regi_date=datetime.date(2025, 3, 26), gap_avg=0.0, gap_sd=0.0, index_list=[18], index=18), DocumentToken(value='Google', document_name='AGI', col_id=3, word_type='alphabet', cate1='기술', cate2='AI', document_path='D:/2025/parsing', pii_type=None, total_cnt=3, domain_cnt=3, cate1_cnt=3, cate2_cnt=3, doc_cnt=3, col_cnt=1, regi_date=datetime.date(2025, 3, 26), gap_avg=0.0, gap_sd=0.0, index_list=[20], index=20), DocumentToken(value='선도', document_name='AGI', col_id=3, word_type='noun', cate1='기술', cate2='AI', document_path='D:/2025/parsing', pii_type=None, total_cnt=6, domain_cnt=6, cate1_cnt=6, cate2_cnt=6, doc_cnt=6, col_cnt=1, regi_date=datetime.date(2025, 3, 26), gap_avg=0.0, gap_sd=0.0, index_list=[23], index=23), DocumentToken(value='있', document_name='AGI', col_id=3, word_type='adjective', cate1='기술', cate2='AI', document_path='D:/2025/parsing', pii_type=None, total_cnt=3, domain_cnt=3, cate1_cnt=3, cate2_cnt=3, doc_cnt=3, col_cnt=1, regi_date=datetime.date(2025, 3, 26), gap_avg=0.0, gap_sd=0.0, index_list=[28], index=28)]
-    
-    print(document_token_repository.update_token_counts(document_token_list_updated))
-    
-    print(document_token_repository.select_all_tokens())

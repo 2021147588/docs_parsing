@@ -1,4 +1,4 @@
-stopwords_file = 'D:/2025/parsing/docs_parsing/be/bp/services/document_parsing/stopwords/stopwords-ko.txt'
+stopwords_file = 'C:/Users/dblab/parsing/docs_parsing/be/bp/services/document_token/stopwords/stopwords-ko.txt'
 
 host = 'localhost'
 port = 3306

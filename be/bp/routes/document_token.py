@@ -4,27 +4,16 @@ import io
 
 from be.bp.services.document_token_service import DocumentParsingService
 from be.bp.repositories.document_token_repository import DocumentTokenRepository
+from be.bp.utils.loggers import setup_logger
+logger = setup_logger()
 
 bp = Blueprint('token', __name__, url_prefix='/token')
 
 @bp.route('/upload', methods=['POST'])
-def upload_files_and_make_token_tables(lang: str):
-    if 'files' not in request.files or 'metadata' not in request.files:
-        return jsonify({
-            'success': False,
-            'message': '파일이 누락되었습니다.'
-        }), 400
+def upload_files_and_make_token_tables():
     
-    pdf_files = request.files.getlist('files')
     metadata_file = request.files['metadata']
-    
-    # PDF 파일 확인
-    for pdf in pdf_files:
-        if not pdf.filename.endswith('.pdf'):
-            return jsonify({
-                'success': False,
-                'message': 'PDF 파일만 업로드 가능합니다.'
-            }), 400
+    lang = request.form['lang']
     
     # 엑셀 파일 확인
     if not metadata_file.filename.endswith(('.xlsx', '.xls')):
@@ -53,36 +42,70 @@ def upload_files_and_make_token_tables(lang: str):
                 'platform': row['platform'],
                 'cate1': row['cate1'],
                 'cate2': row['cate2'],
-                'file_loc': row['file_loc'],
+                'file_loc': row['file_loc'].replace('\\', '/'),
                 'url': row['url']
             }
             metadata.append(metadata_item)
+
+        all_document_counts = 0
+        all_word_counts = 0
+        total_file_path_lists = []
+        for meta in metadata:
+            document_parsing_service = DocumentParsingService()
+            document_counts, word_counts, file_path_lists = document_parsing_service.create_document_token(lang, meta)
+            all_document_counts += document_counts
+            all_word_counts += word_counts
+            total_file_path_lists.extend(file_path_lists)   
+
+        return jsonify({
+            'success': True,
+            'document_counts': document_counts,
+            'word_counts': word_counts,
+            'total_file_path_lists': total_file_path_lists,
+            'message': '엑셀 파일 처리 완료'
+        }), 200
+    
     except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        logger.error(f'엑셀 파일 처리 중 오류가 발생했습니다: {str(error_details)}')
         return jsonify({
             'success': False,
-            'message': f'엑셀 파일 처리 중 오류가 발생했습니다: {str(e)}'
+            'message': f'엑셀 파일 처리 중 오류가 발생했습니다: {str(e)}',
         }), 400
 
+@bp.route('/document/word', methods=["POST"])
+def get_word_info_by_word():
+    data = request.get_json()
+    file_path = data.get('file_path')
+    word = data.get('word')
+    seg_id = data.get('seg_id')
+    logger.info(f"data: {data}")
+
     document_parsing_service = DocumentParsingService()
-    row_count = document_parsing_service.create_document_token(lang, metadata)
-    
+    document = document_parsing_service.get_tokens_by_word_and_document_path(word, seg_id, file_path)
+
     return jsonify({
         'success': True,
-        'row_count': row_count
-    }), 200
-    
-@bp.route('/document/<int:id>', methods=["GET"])
-def make_token_tables(id: int):
-    
-    
-    return jsonify({
-        'success': True
+        'document': document
     }), 200
 
+
+@bp.route('/document', methods=["POST"])
+def get_document_by_id():
+    data = request.get_json()
+    file_path = data.get('file_path')
+    document_parsing_service = DocumentParsingService()
+    document = document_parsing_service.get_segmented_tokens(file_path)
+
+    return jsonify({
+        'success': True,
+        'document': document
+    }), 200
+
+
 @bp.route('/document/statistics/<int:id>', methods=["GET"])
-def make_token_tables(id):
-    
-    
+def get_document_statistics(id: int):
     return jsonify({
         'success': True
     }), 200

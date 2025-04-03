@@ -34,20 +34,22 @@ def compute_token_stats_by_word(
 
     # 1. 단어별 정보 수집
     for segment in parsed_segments:
-        for token in segment.segment_tokens:
-            word = token.word
-            tag = token.tag
-            seg_id = token.seg_id
-            idx = token.idx
-            pii_type = token.pii_type
+        for seg in segment:
+            for token in seg.segment_tokens:
 
-            entry = word_map[(word, seg_id)]
-            entry["value"] = word
-            entry["word_type"] = tag
-            entry["pii_type"] = pii_type
-            entry["index_list"].append(idx)
-            entry["index"] = idx
-            
+                word = token.word
+                tag = token.tag
+                seg_id = token.seg_id
+                idx = token.idx
+                pii_type = token.pii_type
+
+                entry = word_map[(word, seg_id)]
+                entry["value"] = word
+                entry["word_type"] = tag
+                entry["pii_type"] = pii_type
+                entry["index_list"].append(idx)
+                entry["index"] = idx
+                
             
     # 2. 통계 계산 및 모델 생성
     results = []
@@ -85,7 +87,7 @@ def enrich_token_frequencies(tokens: List[DocumentToken]) -> List[DocumentToken]
     cate1_counter = defaultdict(int)
     cate2_counter = defaultdict(int)
     doc_counter = defaultdict(int)
-    breakpoint()
+
     # 먼저 각 그룹에 대해 단어별로 count 누적
     for token in tokens:
         key = token.value
