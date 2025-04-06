@@ -65,7 +65,7 @@
         <q-card-section>
           <div v-if="documents.length > 0">
             <div v-for="(doc, index) in documents" :key="index" class="q-mb-lg">
-              <div class="text-subtitle1 q-mb-sm">세그먼트 {{ index + 1 }}</div>
+              <div class="text-subtitle1 q-mb-sm">분할 {{ index + 1 }}</div>
               <div class="segment-content">
                 <template v-for="(token, tokenIndex) in doc.tokens" :key="tokenIndex">
                   <span
@@ -104,11 +104,13 @@
 import { defineComponent, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from '../boot/axios'
+import { useRouter } from 'vue-router'
 
 export default defineComponent({
   name: 'ExcelUploader',
   setup() {
     const $q = useQuasar()
+    const router = useRouter()
     const selectedFile = ref(null)
     const selectedLang = ref(null)
     const isUploading = ref(false)
@@ -117,6 +119,20 @@ export default defineComponent({
     const currentFileIndex = ref(0)
     const totalFiles = ref(0)
     const filePaths = ref([])
+
+    const showNotification = (message, color = 'positive', icon = 'check') => {
+      if ($q && $q.notify) {
+        $q.notify({
+          color,
+          message,
+          icon,
+          position: 'top',
+          timeout: 5000
+        })
+      } else {
+        console.log(`[${color.toUpperCase()}] ${message}`)
+      }
+    }
 
     const processNextFile = async () => {
       if (currentFileIndex.value >= filePaths.value.length) {
@@ -131,12 +147,7 @@ export default defineComponent({
         currentFileIndex.value++
       } catch (error) {
         console.error(`Error processing document ${filePaths.value[currentFileIndex.value]}:`, error)
-        $q.notify({
-          color: 'negative',
-          message: '문서 처리 중 오류가 발생했습니다.',
-          icon: 'error',
-          position: 'top'
-        })
+        showNotification('문서 처리 중 오류가 발생했습니다.', 'negative', 'error')
       }
     }
 
@@ -144,68 +155,52 @@ export default defineComponent({
       if (!selectedFile.value || !selectedLang.value) return
 
       isUploading.value = true
+      isProcessing.value = true
       const formData = new FormData()
       formData.append('metadata', selectedFile.value)
       formData.append('lang', selectedLang.value)
 
       try {
         const response = await api.post('/token/upload', formData)
-        
+        console.log(response.data)
         if (response.data.success) {
-          // 파일 처리 시작
           filePaths.value = response.data.total_file_path_lists
           totalFiles.value = filePaths.value.length
-          currentFileIndex.value = 0
-          documents.value = []
-          
-          // 업로드 성공 알림
-          $q.notify({
-            color: 'positive',
-            message: `${response.data.document_counts}개의 문서가 파싱되었습니다. 생성된 단어는 ${response.data.word_counts}개 입니다.`,
-            icon: 'check',
-            position: 'top',
-            timeout: 5000
-          })
 
-          // 처리 상태로 전환
-          isProcessing.value = true
-          isUploading.value = false
-          
-          // 첫 번째 문서 처리
-          await processNextFile()
+          if (filePaths.value.length > 0) {
+            try {
+              const firstFilePath = filePaths.value[0]
+              console.log('첫 번째 파일 경로:', firstFilePath)
+              
+              const encodedFilePath = encodeURIComponent(firstFilePath)
+              const allFilePathsJson = JSON.stringify(filePaths.value)
+              const encodedAllFilePaths = encodeURIComponent(allFilePathsJson)
+              
+              window.location.href = `/document?file_path=${encodedFilePath}&all_file_paths=${encodedAllFilePaths}`
+            } catch (error) {
+              console.error('문서 처리 중 오류가 발생했습니다:', error)
+            }
+          }
+
+          selectedFile.value = null
+          selectedLang.value = null
         }
 
-        selectedFile.value = null
-        selectedLang.value = null
+        isUploading.value = false
+        isProcessing.value = false
       } catch (error) {
-        $q.notify({
-          color: 'negative',
-          message: '파일 업로드에 실패했습니다.',
-          icon: 'error',
-          position: 'top'
-        })
-      } finally {
-        if (!isProcessing.value) {
-          isUploading.value = false
-        }
+        console.error('파일 업로드 중 오류가 발생했습니다:', error)
+        isUploading.value = false
+        isProcessing.value = false
       }
     }
 
     const handleTokenClick = (token) => {
-      $q.notify({
-        message: `단어: ${token[0]}, 타입: ${token[1]}`,
-        color: 'info',
-        position: 'top'
-      })
+      console.log(`단어: ${token[0]}, 타입: ${token[1]}`)
     }
 
     const onRejected = (rejectedEntries) => {
-      $q.notify({
-        color: 'negative',
-        message: '지원되지 않는 파일 형식입니다.',
-        icon: 'error',
-        position: 'top'
-      })
+      console.log('지원되지 않는 파일 형식입니다.')
     }
 
     return {

@@ -2,16 +2,15 @@ from typing import List, Literal, Dict
 
 from kiwipiepy import Kiwi
 
-from be.bp.views.tokens import Token, SegmentTokens
-from be.config import stopwords_file
-from be.bp.utils.loggers import setup_logger
+from bp.views.tokens import Token, SegmentTokens
+from config import stopwords_file
+from bp.utils.loggers import setup_logger
 
 logger = setup_logger()
 pos_tag_dict = {
     "NNG": "noun",        # 일반 명사
     "NNP": "proper_noun",  # 고유 명사
     "VV": "verb",          # 동사
-    "VA": "adjective",     # 형용사
     "SL": "alphabet"
 }
 personal_information_tag_dict = {
@@ -66,13 +65,17 @@ class WordTokenizer:
     
                 self.token_positions[t.form] = index
                     
-                if t.tag in pos_tag_dict.keys(): # 명사, 동사, 형용사 추출
+                if t.tag in pos_tag_dict.keys(): # 명사, 동사 추출
                     
                     s_t = Token(idx=index, word=t.form, tag=pos_tag_dict[t.tag], lang=self.lang, seg_id=seg_id)
                     seg_tokens.append(s_t)
                 elif t.tag in personal_information_tag_dict.keys(): # 개인정보 추출
                     s_t = Token(idx=index, word=t.form, tag="개인 정보", lang=self.lang, seg_id=seg_id, personal_infromation=personal_information_tag_dict[t.tag])
                     seg_tokens.append(s_t)
+                else:
+                    s_t = Token(idx=index, word=t.form, tag="기타", lang=self.lang, seg_id=seg_id)
+                    seg_tokens.append(s_t)
+                    
             index+=1
 
         return SegmentTokens(segment_tokens=seg_tokens), index

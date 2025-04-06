@@ -55,7 +55,6 @@ class DocumentParser:
             extract_image_block_output_dir=images_dir,  # optional - only works when ``extract_image_block_to_payload=False``
             content_type="application/pdf", languages=self.languages
             )
-        logger.info(f"[document_parsor.py]{len(elements)}개의 분할 생성")
         return elements
     
     # def _partition_doc(self) -> List[Element]:

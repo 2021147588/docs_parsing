@@ -8,7 +8,7 @@ def input_data(directory: str) -> List[str]:
     for root, dir, files in os.walk(directory):
         
         for file in files:
-            file_path = os.path.join(root, file)
+            file_path = root + '/' + file
             file_paths.append(file_path)
 
     return file_paths

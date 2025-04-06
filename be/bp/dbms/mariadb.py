@@ -1,6 +1,6 @@
 import pymysql
 
-from be.config import host, port, user, password, db_name
+from config import host, port, user, password, db_name
 
 
 import pymysql

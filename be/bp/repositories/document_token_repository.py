@@ -1,11 +1,11 @@
-import pymysql
+
 import json
 from typing import List
 import datetime
 
-from be.bp.views.document_token import DocumentToken
-from be.bp.dbms import get_db  
-from be.bp.utils.loggers import setup_logger
+from bp.views.document_token import DocumentToken
+from bp.dbms import get_db  
+from bp.utils.loggers import setup_logger
 
 logger = setup_logger()
 
@@ -101,9 +101,8 @@ class DocumentTokenRepository:
             self.cursor.executemany(query, values)
             self.conn.commit()
             row_count = self.cursor.rowcount 
-            document_names = {token.document_name for token in document_tokens_list}
 
-            return row_count, list(document_names)
+            return row_count
         
         except Exception as e:
             logger.error(f"[데이터 삽입 오류] {e}")
@@ -220,6 +219,7 @@ class DocumentTokenRepository:
             List[DocumentToken]: 조회된 DocumentToken 객체 리스트.
         """
         try:
+            logger.info(f"word: {word}, document_path: {document_path}, seg_id: {seg_id}")
             query = "SELECT * FROM document_tokens WHERE value = %s AND document_path = %s AND col_id = %s"
             self.cursor.execute(query, (word, document_path, seg_id))
             rows = self.cursor.fetchall()

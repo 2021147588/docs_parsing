@@ -57,11 +57,13 @@
 import { defineComponent, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from '../boot/axios'
+import { useRouter } from 'vue-router'
 
 export default defineComponent({
   name: 'IndexPage',
   setup() {
     const $q = useQuasar()
+    const router = useRouter()
     const selectedFile = ref(null)
     const selectedLang = ref(null)
     const isUploading = ref(false)
@@ -78,23 +80,33 @@ export default defineComponent({
         const response = await api.post('/token/upload', formData)
         
         if (response.data.success) {
-          $q.notify({
-            color: 'positive',
-            message: `${response.data.document_counts}개의 문서가 파싱되었습니다. 생성된 단어는 ${response.data.word_counts}개 입니다.`,
-            icon: 'check',
-            position: 'top',
-            timeout: 5000
-          })
+          console.log('업로드 성공:', response.data)
+          
+          // 파일 경로 처리
+          const filePaths = response.data.total_file_path_lists
+          if (filePaths && filePaths.length > 0) {
+            const firstFilePath = filePaths[0]
+            console.log('첫 번째 파일 경로:', firstFilePath)
+            
+            // 파일 경로 인코딩
+            const encodedFilePath = encodeURIComponent(firstFilePath)
+            const allFilePathsJson = JSON.stringify(filePaths)
+            const encodedAllFilePaths = encodeURIComponent(allFilePathsJson)
+            
+            // DocumentPage로 이동
+            window.location.href = `/document?file_path=${encodedFilePath}&all_file_paths=${encodedAllFilePaths}`
+          }
 
           selectedFile.value = null
           selectedLang.value = null
         }
       } catch (error) {
+        console.error('파일 업로드 중 오류가 발생했습니다:', error)
         $q.notify({
           color: 'negative',
-          message: '파일 업로드에 실패했습니다.',
+          message: '파일 업로드 중 오류가 발생했습니다.',
           icon: 'error',
-          position: 'top'
+          position: 'top',
         })
       } finally {
         isUploading.value = false
@@ -102,12 +114,7 @@ export default defineComponent({
     }
 
     const onRejected = (rejectedEntries) => {
-      $q.notify({
-        color: 'negative',
-        message: '지원되지 않는 파일 형식입니다.',
-        icon: 'error',
-        position: 'top'
-      })
+      console.log('지원되지 않는 파일 형식입니다.')
     }
 
     return {

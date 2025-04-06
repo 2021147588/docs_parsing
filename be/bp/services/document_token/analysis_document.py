@@ -4,9 +4,9 @@ from datetime import date
 
 import numpy as np
 
-from be.bp.views.tokens import SegmentTokens, Token
-from be.bp.views.document_token import DocumentToken
-from be.bp.utils.loggers import setup_logger
+from bp.views.tokens import SegmentTokens, Token
+from bp.views.document_token import DocumentToken
+from bp.utils.loggers import setup_logger
 
 logger = setup_logger()
 

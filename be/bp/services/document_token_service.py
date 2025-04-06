@@ -3,14 +3,14 @@ import json
 import pandas as pd
 import os
 
-from be.bp.services.document_token.input_data import input_data
-from be.bp.services.document_token.document_parsor import DocumentParser
-from be.bp.services.document_token.word_tokenizer import WordTokenizer
-from be.bp.services.document_token.analysis_document import compute_token_stats_by_word, enrich_token_frequencies
-from be.bp.views.document_token import DocumentToken
-from be.bp.repositories.document_token_repository import DocumentTokenRepository
-from be.bp.services.document_token.input_data import input_data
-from be.bp.utils.loggers import setup_logger
+from bp.services.document_token.input_data import input_data
+from bp.services.document_token.document_parsor import DocumentParser
+from bp.services.document_token.word_tokenizer import WordTokenizer
+from bp.services.document_token.analysis_document import compute_token_stats_by_word, enrich_token_frequencies
+from bp.views.document_token import DocumentToken
+from bp.repositories.document_token_repository import DocumentTokenRepository
+from bp.services.document_token.input_data import input_data
+from bp.utils.loggers import setup_logger
 
 logger = setup_logger()
 
@@ -42,11 +42,11 @@ class DocumentParsingService:
         
             row_count = self.document_token_repository.insert_all_document_tokens(document_token_list)
 
-            # 전체 문서 내 토큰 테이블 수치 업데이트
-            all_document_tokens = self.document_token_repository.select_all_tokens()
-            all_document_tokens_update = enrich_token_frequencies(all_document_tokens)
+            # # 전체 문서 내 토큰 테이블 수치 업데이트
+            # all_document_tokens = self.document_token_repository.select_all_tokens()
+            # all_document_tokens_update = enrich_token_frequencies(all_document_tokens)
             
-            row_count = self.document_token_repository.update_token_counts(all_document_tokens_update)
+            # row_count = self.document_token_repository.update_token_counts(all_document_tokens_update)
             row_counts.append(row_count)
 
         return len(row_counts), sum(row_counts), file_path_list
@@ -63,7 +63,7 @@ class DocumentParsingService:
         # 1. 문서를 분할별로 파싱
         parsor = DocumentParser(file_path)
         segs = parsor.parse_doc_to_seg()
-        logger.info(f"분할 개수: {len(segs)}")
+        logger.info(f"[document_token_service.py] 분할 개수: {len(segs)}")
 
         # Seg 데이터를 JSON 파일로 저장
         seg_file_path = f"segs/{os.path.basename(file_path)}.json"
@@ -75,11 +75,11 @@ class DocumentParsingService:
         tokenizer = WordTokenizer(segs, lang)
         tokens = tokenizer.tokenization()
         tokens_per_file.append(tokens)
-        logger.info(f"문서의 토큰 개수: {len(tokens)}")
+        logger.info(f"[document_token_service.py] 문서의 토큰 개수: {len(tokens)}")
 
         # 3. 단어 분석
         document_token_list = compute_token_stats_by_word(tokens_per_file, name, file_path, cate1, cate2)
-        logger.info(f"문서의 토큰 테이블 개수: {len(document_token_list)}")
+        logger.info(f"[document_token_service.py] 문서의 토큰 테이블 개수: {len(document_token_list)}")
 
         return document_token_list
     
@@ -111,7 +111,10 @@ class DocumentParsingService:
             # DocumentToken 중 col_id가 현재 segment의 col_id와 일치하는 token 추가
             for document_token in document_tokens:
                 if document_token.col_id == col_id:
-                    segment_dict["tokens"].append([document_token.value, document_token.word_type])
+                    segment_dict["tokens"].append({
+                        "word": document_token.value,
+                        "word_type": document_token.word_type
+                    })
 
             result.append(segment_dict)
 
@@ -123,10 +126,9 @@ class DocumentParsingService:
         """
         # DocumentToken 데이터베이스에서 조회
         document_tokens = self.document_token_repository.get_tokens_by_word_and_document_path(word,seg_id, file_path)
-        document_tokens_dict = [token.to_dict() for token in document_tokens]
+        document_tokens_dict = [token.model_dump() for token in document_tokens]
 
-
-        return document_tokens_dict
+        return document_tokens_dict[0]
 
     
 if __name__ =="__main__":

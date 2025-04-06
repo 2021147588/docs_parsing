@@ -1,6 +1,8 @@
 import { route } from 'quasar/wrappers'
 import { createRouter, createWebHistory } from 'vue-router'
 import routes from './routes'
+import DocumentPage from '../pages/DocumentPage.vue'
+import DocumentTokensPage from '../pages/DocumentTokensPage.vue'
 
 /*
  * If not building with SSR mode, you can

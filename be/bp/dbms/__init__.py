@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from be.bp.dbms.mariadb import get_db  # 🔹 DB 접속 함수 불러오기
+from bp.dbms.mariadb import get_db  # 🔹 DB 접속 함수 불러오기
 
 bp = Blueprint('dbms', __name__, url_prefix='/dbms')
 
