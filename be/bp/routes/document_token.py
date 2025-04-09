@@ -89,7 +89,7 @@ def upload_files_and_make_token_tables():
             'message': f'엑셀 파일 처리 중 오류가 발생했습니다: {str(e)}',
         }), 400
 
-@bp.route('/document/word', methods=["POST"])
+@bp.route('document/word/', methods=["POST"])
 def get_word_info_by_word():
     data = request.get_json()
     file_path = data.get('file_path')
