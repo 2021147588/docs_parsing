@@ -174,8 +174,8 @@ def batch_update_dictionaries():
             word_type = token.get('word_type')
             cate1 = token.get('cate1')
             cate2 = None
-            
-            if word_type == '기타':
+            dictionary = token.get('dictionary')
+            if dictionary == 'stopwords':
                 # 불용어사전에 추가 (카운트 증가 없이)
                 result = dictionary_service.add_to_stopwords(word, increment_count=False)
                 if result.get('success'):

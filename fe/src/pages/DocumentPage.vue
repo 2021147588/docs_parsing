@@ -8,6 +8,39 @@
         </div>
       </q-card-section>
 
+      <!-- 색상 선택 버튼 추가 -->
+      <q-card-section>
+        <div class="text-subtitle1 q-mb-sm">의미사전 색상</div>
+        <div class="row q-gutter-sm q-mb-md">
+          <q-btn 
+            v-for="color in meaningColors" 
+            :key="color.name"
+            :color="color.value"
+            :class="{ 'selected-color': selectedMeaningColor === color.value }"
+            class="color-btn"
+            @click="selectedMeaningColor = color.value"
+          >
+            {{ color.name }}
+          </q-btn>
+        </div>
+        
+        <div class="text-subtitle1 q-mb-sm">불용어사전 색상</div>
+        <div class="row q-gutter-sm">
+          <q-btn 
+            v-for="color in stopwordsColors" 
+            :key="color.name"
+            :class="[
+              'color-btn',
+              { 'selected-color': selectedStopwordsColor === color.value },
+              `bg-${color.value}`
+            ]"
+            flat
+            :label="color.name"
+            @click="selectedStopwordsColor = color.value"
+          />
+        </div>
+      </q-card-section>
+
       <q-card-section>
         <div v-if="documents.length > 0">
           <div
@@ -25,14 +58,14 @@
                   <template v-if="word.highlight">
                     <span
                       class="token"
-                      :class="getTextColorClass(word.word_type)"
+                      :class="getTextColorClass(word.word_type, word.dictionary)"
                       @click="handleTokenClick(word, index)"
                     >
                       {{ word.word }}
                     </span>
                   </template>
                   <template v-else>
-                    <span :class="getTextColorClass(word.word_type)">
+                    <span :class="getTextColorClass(word.word_type, word.dictionary)">
                       {{ word.word }}
                     </span>
                   </template>
@@ -80,21 +113,6 @@
             <div v-else>
               <p>의미사전에 등록되지 않음</p>
             </div>
-            <div class="q-mt-sm">
-              <q-btn 
-                color="positive" 
-                label="의미사전에 추가" 
-                size="sm"
-                @click="addToDictionary(wordInfo.word)"
-              />
-              <q-btn 
-                color="negative" 
-                label="의미사전에서 삭제" 
-                size="sm"
-                class="q-ml-sm"
-                @click="removeFromDictionary(wordInfo.word)"
-              />
-            </div>
           </div>
           
           <div class="q-mt-md">
@@ -106,21 +124,38 @@
             <div v-else>
               <p>불용어사전에 등록되지 않음</p>
             </div>
-            <div class="q-mt-sm">
-              <q-btn 
-                color="positive" 
-                label="불용어사전에 추가" 
-                size="sm"
-                @click="addToStopwords(wordInfo.word)"
-              />
-              <q-btn 
-                color="negative" 
-                label="불용어사전에서 삭제" 
-                size="sm"
-                class="q-ml-sm"
-                @click="removeFromStopwords(wordInfo.word)"
-              />
-            </div>
+          </div>
+          
+          <div class="q-mt-md">
+            <div class="text-subtitle1">사전 선택</div>
+            <q-radio
+              v-model="selectedDictionary"
+              val="meaning"
+              label="의미사전"
+              class="q-mb-sm"
+            />
+            <q-radio
+              v-model="selectedDictionary"
+              val="stopwords"
+              label="불용어사전"
+              class="q-mb-sm"
+            />
+          </div>
+          
+          <div class="q-mt-md">
+            <q-btn 
+              color="primary" 
+              :label="selectedDictionary === 'meaning' ? '의미사전에 추가' : '불용어사전에 추가'" 
+              size="sm"
+              @click="handleDictionaryAction('add')"
+            />
+            <q-btn 
+              color="negative" 
+              :label="selectedDictionary === 'meaning' ? '의미사전에서 삭제' : '불용어사전에서 삭제'" 
+              size="sm"
+              class="q-ml-sm"
+              @click="handleDictionaryAction('remove')"
+            />
           </div>
         </q-card-section>
 
@@ -203,7 +238,7 @@
 </template>
 
 <script>
-import { defineComponent, ref, onMounted } from 'vue'
+import { defineComponent, ref, onMounted, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from '../boot/axios'
 import { useRoute, useRouter } from 'vue-router'
@@ -231,9 +266,38 @@ export default defineComponent({
       cate2: ''
     })
     const router = useRouter()
+    const selectedDictionary = ref('meaning')
+    
+    // 색상 선택 관련 변수
+    const selectedMeaningColor = ref('black')
+    const selectedStopwordsColor = ref('grey')
+    
+    // 의미사전 색상 옵션
+    const meaningColors = [
+      { name: '검정', value: 'black' },
+      { name: '파랑', value: 'blue' },
+      { name: '초록', value: 'green' },
+      { name: '빨강', value: 'red' },
+      { name: '보라', value: 'purple' },
+      { name: '주황', value: 'orange' }
+    ]
+    
+    // 불용어사전 색상 옵션
+    const stopwordsColors = [
+      { name: '회색', value: 'grey' },
+      { name: '연한 파랑', value: 'light-blue' },
+      { name: '연한 초록', value: 'light-green' },
+      { name: '연한 빨강', value: 'light-red' },
+      { name: '연한 보라', value: 'light-purple' },
+      { name: '연한 주황', value: 'light-orange' },
+      { name: '연한 노랑', value: 'light-yellow' }
+    ]
 
-    const getTextColorClass = (wordType) => {
-      return wordType === '기타' ? 'text-grey' : 'text-black'
+    const getTextColorClass = (wordType, dictionary) => {
+      if (dictionary === 'stopwords') {
+        return `text-${selectedStopwordsColor.value}`
+      }
+      return `text-${selectedMeaningColor.value}`
     }
 
     const fetchDocument = async (filePath) => {
@@ -598,9 +662,10 @@ export default defineComponent({
             index: idx, 
             length: token.word.length, 
             word: token.word,
-            word_type: token.word_type 
+            word_type: token.word_type,
+            dictionary: token.dictionary
           })
-          startIndex = idx + 1 // 한 글자씩 이동하며 중복 탐색 허용
+          startIndex = idx + 1
         }
       }
 
@@ -618,7 +683,6 @@ export default defineComponent({
       // 하이라이팅 단어 조각 만들기
       for (const match of filtered) {
         if (match.index > cursor) {
-          // 원문의 공백을 유지하면서 텍스트 추가
           const text = segment.slice(cursor, match.index)
           if (text) {
             result.push({
@@ -630,13 +694,13 @@ export default defineComponent({
         result.push({
           word: segment.slice(match.index, match.index + match.length),
           word_type: match.word_type,
+          dictionary: match.dictionary,
           highlight: true
         })
         cursor = match.index + match.length
       }
 
       if (cursor < segment.length) {
-        // 원문의 공백을 유지하면서 텍스트 추가
         const text = segment.slice(cursor)
         if (text) {
           result.push({
@@ -654,6 +718,100 @@ export default defineComponent({
       wordInfo.value = null
       dictionaryInfo.value = null
       stopwordsInfo.value = null
+    }
+
+    // Watch for changes in wordInfo to update selectedDictionary
+    watch(wordInfo, (newWordInfo) => {
+      if (newWordInfo) {
+        // Check if the word exists in either dictionary
+        if (dictionaryInfo.value) {
+          selectedDictionary.value = 'meaning'
+        } else if (stopwordsInfo.value) {
+          selectedDictionary.value = 'stopwords'
+        } else {
+          // Default to meaning dictionary if not in either
+          selectedDictionary.value = 'meaning'
+        }
+      }
+    })
+
+    const handleDictionaryAction = async (action) => {
+      try {
+        const word = wordInfo.value?.word || wordInfo.value?.value
+        if (!word) return
+        console.log('handleDictionaryAction', word, wordInfo.value)
+        let response
+        if (selectedDictionary.value === 'meaning') {
+          if (action === 'add') {
+            response = await api.post('/token/dictionary/add', {
+              word: word,
+              cate1: wordInfo.value.cate1,
+              cate2: null
+            })
+          } else {
+            response = await api.post('/token/dictionary/remove', {
+              word: word,
+              cate1: wordInfo.value.cate1,
+              cate2: null
+            })
+          }
+        } else {
+          if (action === 'add') {
+            response = await api.post('/token/stopwords/add', {
+              word: word,
+              cate1: wordInfo.value.cate1,
+              cate2: null
+            })
+          } else {
+            response = await api.post('/token/stopwords/remove', {
+              word: word,
+              cate1: wordInfo.value.cate1,
+              cate2: null
+            })
+          }
+        }
+
+        if (response.data.success) {
+          // Update the token's dictionary in the current document
+          if (documents.value.length > 0) {
+            for (const doc of documents.value) {
+              if (doc.tokens) {
+                for (const token of doc.tokens) {
+                  if (token.word === word) {
+                    token.dictionary = selectedDictionary.value
+                    console.log('token.dictionary', token)
+                  }
+                }
+              }
+            }
+          }
+
+          $q.notify({
+            color: 'positive',
+            message: `${selectedDictionary.value === 'meaning' ? '의미사전' : '불용어사전'}에서 단어가 ${action === 'add' ? '추가' : '삭제'}되었습니다.`,
+            icon: 'check',
+            position: 'top',
+          })
+
+          // Refresh word info
+          await handleTokenClick({ word }, currentFileIndex.value)
+        } else {
+          $q.notify({
+            color: 'negative',
+            message: response.data.message || `사전 ${action === 'add' ? '추가' : '삭제'}에 실패했습니다.`,
+            icon: 'error',
+            position: 'top',
+          })
+        }
+      } catch (error) {
+        console.error('사전 작업 중 오류:', error)
+        $q.notify({
+          color: 'negative',
+          message: '사전 작업 중 오류가 발생했습니다.',
+          icon: 'error',
+          position: 'top',
+        })
+      }
     }
 
     // URL 쿼리 파라미터에서 file_path 가져오기
@@ -747,7 +905,13 @@ export default defineComponent({
       addToStopwords,
       removeFromStopwords,
       saveDocument,
-      handleSave
+      handleSave,
+      selectedDictionary,
+      handleDictionaryAction,
+      selectedMeaningColor,
+      selectedStopwordsColor,
+      meaningColors,
+      stopwordsColors,
     }
   },
 })
@@ -794,13 +958,133 @@ export default defineComponent({
   color: #000000;
 }
 
+.text-blue {
+  color: #1976D2;
+}
+
+.text-green {
+  color: #2E7D32;
+}
+
+.text-red {
+  color: #D32F2F;
+}
+
+.text-purple {
+  color: #7B1FA2;
+}
+
+.text-orange {
+  color: #F57C00;
+}
+
 .text-grey {
   color: #9e9e9e;
 }
 
-.text-grey-7 {
-  color: #757575;
-  font-style: italic;
+.text-light-blue {
+  color: #64B5F6;
+}
+
+.text-light-green {
+  color: #81C784;
+}
+
+.text-light-red {
+  color: #E57373;
+}
+
+.text-light-purple {
+  color: #BA68C8;
+}
+
+.text-light-orange {
+  color: #FFB74D;
+}
+
+.text-light-yellow {
+  color: #FFE082;
+}
+
+.color-btn {
+  min-width: 80px;
+  margin: 4px;
+  display: inline-block;
+  font-weight: 500;
+  border: 2px solid transparent;
+}
+
+.color-btn.selected-color {
+  font-weight: bold;
+  border: 2px solid #333;
+  opacity: 0.9;
+}
+
+/* 의미사전 색상 버튼 스타일 */
+.color-btn[color="black"] {
+  background-color: #000000;
+  color: white;
+}
+
+.color-btn[color="blue"] {
+  background-color: #1565C0;
+  color: white;
+}
+
+.color-btn[color="green"] {
+  background-color: #1B5E20;
+  color: white;
+}
+
+.color-btn[color="red"] {
+  background-color: #B71C1C;
+  color: white;
+}
+
+.color-btn[color="purple"] {
+  background-color: #4A148C;
+  color: white;
+}
+
+.color-btn[color="orange"] {
+  background-color: #E65100;
+  color: white;
+}
+
+/* 불용어사전 색상 버튼 스타일 */
+.bg-grey {
+  background-color: #BDBDBD !important;
+  color: #333 !important;
+}
+
+.bg-light-blue {
+  background-color: #BBDEFB !important;
+  color: #333 !important;
+}
+
+.bg-light-green {
+  background-color: #C8E6C9 !important;
+  color: #333 !important;
+}
+
+.bg-light-red {
+  background-color: #FFE4E1 !important;
+  color: #333 !important;
+}
+
+.bg-light-purple {
+  background-color: #F3E5F5 !important;
+  color: #333 !important;
+}
+
+.bg-light-orange {
+  background-color: #FFE0B2 !important;
+  color: #333 !important;
+}
+
+.bg-light-yellow {
+  background-color: #FFF9C4 !important;
+  color: #333 !important;
 }
 
 .word-info-modal {
@@ -870,6 +1154,18 @@ export default defineComponent({
 .word-info-section strong {
   margin-right: 8px;
   color: #555;
+}
+
+.row.q-gutter-sm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 8px;
+}
+
+.row.q-gutter-sm > * {
+  margin: 0;
 }
 </style>
 

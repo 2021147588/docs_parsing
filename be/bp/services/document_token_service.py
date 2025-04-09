@@ -111,9 +111,11 @@ class DocumentParsingService:
             # DocumentToken 중 col_id가 현재 segment의 col_id와 일치하는 token 추가
             for document_token in document_tokens:
                 if document_token.col_id == col_id:
+                    
                     segment_dict["tokens"].append({
                         "word": document_token.value,
-                        "word_type": document_token.word_type
+                        "word_type": document_token.word_type, 
+                        "dictionary": "stopwords" if document_token.word_type == '기타' else "meaning"
                     })
 
             result.append(segment_dict)

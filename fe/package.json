@@ -1,8 +1,8 @@
 {
-  "name": "anonytester-front",
+  "name": "document-parsing-front",
   "version": "0.0.1",
-  "description": "anonytester project",
-  "productName": "anonytester",
+  "description": "문서 파싱 project",
+  "productName": "문서 파싱",
   "author": "Dawn Jeong (with. Jinhyuk)",
   "private": true,
   "scripts": {
