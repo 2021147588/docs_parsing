@@ -94,68 +94,76 @@
       <q-card style="min-width: 350px">
         <q-card-section>
           <div class="text-h6">{{ wordInfo?.word || wordInfo?.value }}</div>
+          <div class="dictionary-divider"></div>
         </q-card-section>
 
         <q-card-section class="q-pt-none">
           <div v-if="wordInfo">
-            <p><strong>유형:</strong> {{ wordInfo.word_type || 'null' }}</p>
-            <p><strong>출현 횟수:</strong> {{ wordInfo.total_cnt || 'null' }}</p>
-            <p><strong>도메인 수:</strong> {{ wordInfo.domain_cnt || 'null' }}</p>
-            <p><strong>문서 수:</strong> {{ wordInfo.doc_cnt || 'null' }}</p>
+            <p><strong>유형:</strong> {{ wordInfo.word_type || '정보 없음' }}</p>
+            <p><strong>출현 횟수:</strong> {{ wordInfo.total_cnt || '정보 없음' }}</p>
+            <p><strong>도메인 수:</strong> {{ wordInfo.domain_cnt || '정보 없음' }}</p>
+            <p><strong>문서 수:</strong> {{ wordInfo.doc_cnt || '정보 없음' }}</p>
           </div>
           
           <div class="q-mt-md">
-            <div class="text-subtitle1">의미사전 정보</div>
-            <div v-if="dictionaryInfo">
-              <p><strong>추가 횟수:</strong> {{ dictionaryInfo.total_add_count || 'null' }}</p>
-              <p><strong>삭제 횟수:</strong> {{ dictionaryInfo.total_delete_count || 'null' }}</p>
+            <div class="text-subtitle1 dictionary-title">의미사전 정보</div>
+            <div class="dictionary-divider"></div>
+            <div v-if="dictionaryInfo" class="dictionary-content">
+              <p><strong>추가 횟수:</strong> {{ dictionaryInfo.total_add_count || '정보 없음' }}</p>
+              <p><strong>삭제 횟수:</strong> {{ dictionaryInfo.total_delete_count || '정보 없음' }}</p>
             </div>
-            <div v-else>
+            <div v-else class="dictionary-empty">
               <p>의미사전에 등록되지 않음</p>
             </div>
           </div>
           
           <div class="q-mt-md">
-            <div class="text-subtitle1">불용어사전 정보</div>
-            <div v-if="stopwordsInfo">
-              <p><strong>추가 횟수:</strong> {{ stopwordsInfo.total_add_count || 'null' }}</p>
-              <p><strong>삭제 횟수:</strong> {{ stopwordsInfo.total_delete_count || 'null' }}</p>
+            <div class="text-subtitle1 dictionary-title">불용어사전 정보</div>
+            <div class="dictionary-divider"></div>
+            <div v-if="stopwordsInfo" class="dictionary-content">
+              <p><strong>추가 횟수:</strong> {{ stopwordsInfo.total_add_count || '정보 없음' }}</p>
+              <p><strong>삭제 횟수:</strong> {{ stopwordsInfo.total_delete_count || '정보 없음' }}</p>
             </div>
-            <div v-else>
+            <div v-else class="dictionary-empty">
               <p>불용어사전에 등록되지 않음</p>
             </div>
           </div>
           
           <div class="q-mt-md">
-            <div class="text-subtitle1">사전 선택</div>
-            <q-radio
-              v-model="selectedDictionary"
-              val="meaning"
-              label="의미사전"
-              class="q-mb-sm"
-            />
-            <q-radio
-              v-model="selectedDictionary"
-              val="stopwords"
-              label="불용어사전"
-              class="q-mb-sm"
-            />
+            <div class="text-subtitle1 dictionary-title">사전 선택</div>
+            <div class="dictionary-divider"></div>
+            <div class="dictionary-content">
+              <q-radio
+                v-model="selectedDictionary"
+                val="meaning"
+                label="의미사전"
+                class="q-mb-sm"
+              />
+              <q-radio
+                v-model="selectedDictionary"
+                val="stopwords"
+                label="불용어사전"
+                class="q-mb-sm"
+              />
+            </div>
           </div>
           
           <div class="q-mt-md">
-            <q-btn 
-              color="primary" 
-              :label="selectedDictionary === 'meaning' ? '의미사전에 추가' : '불용어사전에 추가'" 
-              size="sm"
-              @click="handleDictionaryAction('add')"
-            />
-            <q-btn 
-              color="negative" 
-              :label="selectedDictionary === 'meaning' ? '의미사전에서 삭제' : '불용어사전에서 삭제'" 
-              size="sm"
-              class="q-ml-sm"
-              @click="handleDictionaryAction('remove')"
-            />
+            <div class="dictionary-actions">
+              <q-btn 
+                color="primary" 
+                :label="selectedDictionary === 'meaning' ? '의미사전에 추가' : '불용어사전에 추가'" 
+                size="sm"
+                @click="handleDictionaryAction('add')"
+              />
+              <q-btn 
+                color="negative" 
+                :label="selectedDictionary === 'meaning' ? '의미사전에서 삭제' : '불용어사전에서 삭제'" 
+                size="sm"
+                class="q-ml-sm"
+                @click="handleDictionaryAction('remove')"
+              />
+            </div>
           </div>
         </q-card-section>
 
@@ -1166,6 +1174,80 @@ export default defineComponent({
 
 .row.q-gutter-sm > * {
   margin: 0;
+}
+
+.dictionary-title {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 2px;
+  font-size: 0.9rem;
+}
+
+.dictionary-divider {
+  height: 1px;
+  background-color: #e0e0e0;
+  margin-bottom: 8px;
+  border-radius: 1px;
+}
+
+.dictionary-content {
+  background-color: #f9f9f9;
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+  line-height: 1.3;
+}
+
+.dictionary-content p {
+  margin: 4px 0;
+}
+
+.dictionary-content strong {
+  font-weight: 600;
+}
+
+.dictionary-empty {
+  color: #999;
+  font-style: italic;
+  padding: 4px 0;
+  font-size: 0.85rem;
+  line-height: 1.3;
+}
+
+.dictionary-actions {
+  display: flex;
+  justify-content: flex-start;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+/* 팝업 제목 크기 조정 */
+.text-h6 {
+  font-size: 1.1rem !important;
+  margin-bottom: 4px;
+}
+
+/* 라디오 버튼 레이블 크기 조정 */
+.q-radio {
+  font-size: 0.85rem;
+  margin-bottom: 4px;
+}
+
+/* 버튼 크기 조정 */
+.dictionary-actions .q-btn {
+  font-size: 0.85rem;
+  padding: 3px 6px;
+  min-height: 28px;
+}
+
+/* 카드 섹션 패딩 조정 */
+.q-card-section {
+  padding: 8px 16px;
+}
+
+.q-card-section.q-pt-none {
+  padding-top: 0;
 }
 </style>
 
