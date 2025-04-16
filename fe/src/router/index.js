@@ -2,7 +2,6 @@ import { route } from 'quasar/wrappers'
 import { createRouter, createWebHistory } from 'vue-router'
 import routes from './routes'
 import DocumentPage from '../pages/DocumentPage.vue'
-import DocumentStatistics from '../pages/DocumentStatistics.vue'
 
 /*
  * If not building with SSR mode, you can
@@ -19,11 +18,6 @@ const documentRoutes = [
     path: '/document',
     name: 'Document',
     component: DocumentPage
-  },
-  {
-    path: '/document/statistics',
-    name: 'DocumentStatistics',
-    component: DocumentStatistics
   }
 ]
 

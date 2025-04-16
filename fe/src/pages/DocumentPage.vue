@@ -5,6 +5,27 @@
       <div class="col-2">
         <q-card class="directory-tree-card">
           <q-card-section>
+            <!-- 통계 보기 버튼 -->
+            <div class="q-mb-md">
+              <q-btn 
+                color="primary" 
+                label="문서 보기" 
+                class="full-width"
+                :disable="!selectedNode"
+                @click="showStatisticsMode = false"
+              />
+              <q-btn 
+                color="primary" 
+                label="통계 보기" 
+                class="full-width q-mt-sm"
+                :disable="!selectedNode"
+                :loading="isStatisticsLoading"
+                @click="showStatistics"
+              />
+              <div v-if="!selectedNode" class="text-caption text-grey q-mt-sm">
+                통계를 보려면 먼저 문서를 선택해주세요.
+              </div>
+            </div>
             <div class="text-h6 q-mb-md">문서 디렉토리</div>
             <!-- 상위 경로 표시 -->
             <div class="path-breadcrumb q-mb-md">
@@ -14,37 +35,181 @@
               </template>
             </div>
             <!-- 하위 디렉토리 트리 -->
-            <q-tree
-              v-if="directoryTree.length > 0"
-              :nodes="directoryTree"
-              node-key="id"
-              :selected.sync="selectedNode"
-              @update:selected="handleNodeSelect"
-              default-expand-all
-              label-key="label"
-              class="directory-tree"
-            >
-              <template v-slot:default-header="prop">
-                <div class="row items-center">
-                  <q-icon :name="prop.node.children ? 'folder' : 'description'" class="q-mr-sm" />
-                  {{ prop.node.label }}
-                </div>
-              </template>
-            </q-tree>
+            <div v-if="directoryTree.length > 0">
+              <div class="text-subtitle2 q-mb-sm">문서 목록</div>
+              <q-tree
+                :nodes="directoryTree"
+                node-key="id"
+                :selected.sync="selectedNode"
+                @update:selected="handleNodeSelect"
+                default-expand-all
+                label-key="label"
+                class="directory-tree"
+              >
+                <template v-slot:default-header="prop">
+                  <div class="row items-center">
+                    <q-icon :name="prop.node.children ? 'folder' : 'description'" class="q-mr-sm" />
+                    {{ prop.node.label }}
+                  </div>
+                </template>
+              </q-tree>
+            </div>
+            <div v-else class="text-center text-grey">
+              로드된 문서가 없습니다.
+            </div>
           </q-card-section>
         </q-card>
       </div>
 
       <!-- 문서 내용 섹션 -->
-      <div class="col-7">
-        <q-card class="document-card">
-          <q-card-section class="text-center">
+      <div :class="showStatisticsMode ? 'col-10' : 'col-7'">
+        <!-- 통계 보기 모드일 때 -->
+        <q-card v-if="showStatisticsMode" class="document-card">
+          <q-card-section>
+            <div class="text-h5 q-mb-md">문서 통계</div>
+            
+            <!-- 전체 통계 -->
+            <div class="text-h6 q-mb-sm">전체 통계</div>
+            <div class="row q-col-gutter-md">
+              <div class="col-4">
+                <q-card flat bordered>
+                  <q-card-section>
+                    <div class="text-subtitle2">전체 단어 수</div>
+                    <div class="text-h6">{{ statistics.statistics.statistics.total_words }}</div>
+                  </q-card-section>
+                </q-card>
+              </div>
+              <div class="col-4">
+                <q-card flat bordered>
+                  <q-card-section>
+                    <div class="text-subtitle2">평균 발생 횟수</div>
+                    <div class="text-h6">{{ statistics.statistics.statistics.overall_statistics.average.toFixed(4) }}</div>
+                  </q-card-section>
+                </q-card>
+              </div>
+              <div class="col-4">
+                <q-card flat bordered>
+                  <q-card-section>
+                    <div class="text-subtitle2">표준 편차</div>
+                    <div class="text-h6">{{ statistics.statistics.statistics.overall_statistics.std_dev.toFixed(4) }}</div>
+                  </q-card-section>
+                </q-card>
+              </div>
+            </div>
+
+            <!-- 필터 섹션 -->
+            <div class="text-h6 q-mt-md q-mb-sm">필터</div>
+            <div class="row q-col-gutter-md">
+              <div class="col-6">
+                <q-card flat bordered>
+                  <q-card-section>
+                    <div class="text-subtitle2 q-mb-sm">평균 발생 횟수 범위</div>
+                    <div class="row q-col-gutter-sm">
+                      <div class="col-5">
+                        <q-input
+                          v-model="averageRange.min"
+                          type="number"
+                          label="최소값"
+                          dense
+                          outlined
+                        />
+                      </div>
+                      <div class="col-2 text-center q-pt-md">~</div>
+                      <div class="col-5">
+                        <q-input
+                          v-model="averageRange.max"
+                          type="number"
+                          label="최대값"
+                          dense
+                          outlined
+                        />
+                      </div>
+                    </div>
+                  </q-card-section>
+                </q-card>
+              </div>
+              <div class="col-6">
+                <q-card flat bordered>
+                  <q-card-section>
+                    <div class="text-subtitle2 q-mb-sm">표준 편차 범위</div>
+                    <div class="row q-col-gutter-sm">
+                      <div class="col-5">
+                        <q-input
+                          v-model="stdDevRange.min"
+                          type="number"
+                          label="최소값"
+                          dense
+                          outlined
+                        />
+                      </div>
+                      <div class="col-2 text-center q-pt-md">~</div>
+                      <div class="col-5">
+                        <q-input
+                          v-model="stdDevRange.max"
+                          type="number"
+                          label="최대값"
+                          dense
+                          outlined
+                        />
+                      </div>
+                    </div>
+                  </q-card-section>
+                </q-card>
+              </div>
+            </div>
+
+            <!-- 파싱 버튼 -->
+            <div class="row justify-end q-mt-md">
+              <q-btn
+                color="primary"
+                label="선택한 범위로 문서 파싱"
+                :loading="isParsingLoading"
+                @click="parseDocumentWithRange"
+              />
+            </div>
+
+            <!-- 단어별 통계 -->
+            <div class="text-h6 q-mt-md q-mb-sm">단어별 통계</div>
+            <q-table
+              :rows="wordStatisticsRows"
+              :columns="wordStatisticsColumns"
+              row-key="word"
+              :pagination="{ rowsPerPage: 10 }"
+              flat
+              bordered
+            >
+              <template v-slot:body-cell="props">
+                <q-td :props="props">
+                  <template v-if="props.col.name === 'segment_frequencies'">
+                    <div class="segment-frequencies">
+                      <div v-for="(freq, segment) in props.value" :key="segment" class="segment-item">
+                        <span class="segment-label">{{ segment }}:</span>
+                        <span class="segment-value">{{ freq }}</span>
+                      </div>
+                    </div>
+                  </template>
+                  <template v-else>
+                    {{ props.value }}
+                  </template>
+                </q-td>
+              </template>
+            </q-table>
+          </q-card-section>
+
+          <q-card-actions align="right">
+            <q-btn flat color="primary" label="문서 보기" @click="showStatisticsMode = false" />
+          </q-card-actions>
+        </q-card>
+
+        <!-- 일반 모드일 때 -->
+        <q-card v-else class="document-card">
+      <q-card-section class="text-center">
             <div class="text-h5 q-mb-sm file-name-container">
               <div class="file-name" ref="fileNameRef">{{ currentFilePath.split('/').pop() }}</div>
             </div>
             <div class="text-subtitle1 text-grey q-mb-sm">
-              {{ currentFileIndex + 1 }}/{{ totalFiles }} 번째 문서
-            </div>
+          {{ currentFileIndex + 1 }}/{{ totalFiles }} 번째 문서
+        </div>
             <div class="row justify-end q-mb-md">
               <q-btn
                 color="primary"
@@ -52,122 +217,86 @@
                 :disable="false"
                 @click="handleSave()"
               />
-            </div>
-          </q-card-section>
-<!-- 
-          색상 선택 버튼 추가
-          <q-card-section>
-            <div class="text-subtitle1 q-mb-sm">의미사전 색상</div>
-            <div class="row q-gutter-sm q-mb-md">
-              <q-btn 
-                v-for="color in meaningColors" 
-                :key="color.name"
-                :color="color.value"
-                :class="{ 'selected-color': selectedMeaningColor === color.value }"
-                class="color-btn"
-                @click="selectedMeaningColor = color.value"
-              >
-                {{ color.name }}
-              </q-btn>
-            </div>
-            
-            <div class="text-subtitle1 q-mb-sm">불용어사전 색상</div>
-            <div class="row q-gutter-sm">
-              <q-btn 
-                v-for="color in stopwordsColors" 
-                :key="color.name"
-                :class="[
-                  'color-btn',
-                  { 'selected-color': selectedStopwordsColor === color.value },
-                  `bg-${color.value}`
-                ]"
-                flat
-                :label="color.name"
-                @click="selectedStopwordsColor = color.value"
-              />
-            </div>
-          </q-card-section> -->
+        </div>
+      </q-card-section>
 
-          <q-card-section>
-            <div v-if="documents.length > 0">
-              <div
-                v-for="(doc, index) in documents"
-                :key="index"
-                class="q-mb-lg"
-              >
-                <div class="text-subtitle1 q-mb-sm">분할 {{ index + 1 }}</div>
-                <div class="segment-content">
-                  <div class="segment-text">
-                    <template
-                      v-for="(word, wordIndex) in highlightTokensInSegment(doc.segment, doc.tokens)"
-                      :key="wordIndex"
-                    >
-                      <template v-if="word.highlight">
-                        <span
-                          class="token"
+      <q-card-section>
+        <div v-if="documents.length > 0">
+          <div
+            v-for="(doc, index) in documents"
+            :key="index"
+            class="q-mb-lg"
+          >
+            <div class="text-subtitle1 q-mb-sm">분할 {{ index + 1 }}</div>
+            <div class="segment-content">
+              <div class="segment-text">
+                <template
+                  v-for="(word, wordIndex) in highlightTokensInSegment(doc.segment, doc.tokens)"
+                  :key="wordIndex"
+                >
+                  <template v-if="word.highlight">
+                    <span
+                      class="token"
                           :class="getTextColorClass(word.word_type, word.dictionary)"
-                          @click="handleTokenClick(word, index)"
-                        >
-                          {{ word.word }}
-                        </span>
-                      </template>
-                      <template v-else>
+                      @click="handleTokenClick(word, index)"
+                    >
+                      {{ word.word }}
+                    </span>
+                  </template>
+                  <template v-else>
                         <span :class="getTextColorClass(word.word_type, word.dictionary)">
-                          {{ word.word }}
-                        </span>
-                      </template>
-                    </template>
-                  </div>
-                </div>
+                      {{ word.word }}
+                    </span>
+                  </template>
+                </template>
               </div>
             </div>
-            <div v-else class="text-center text-grey">
-              문서를 불러오는 중...
-            </div>
-          </q-card-section>
-
-          <q-card-actions align="right" class="q-pa-md">
-          </q-card-actions>
-        </q-card>
+          </div>
+        </div>
+        <div v-else class="text-center text-grey">
+          문서를 불러오는 중...
+        </div>
+      </q-card-section>
+    </q-card>
       </div>
 
       <!-- 단어 정보 사이드 패널 -->
-      <div class="col-3" v-if="wordInfo">
+      <div class="col-3" v-if="!showStatisticsMode && wordInfo">
         <q-card class="word-info-card">
-          <q-card-section>
-            <div class="text-h6">{{ wordInfo?.word || wordInfo?.value }}</div>
-          </q-card-section>
+        <q-card-section>
+          <div class="text-h6">{{ wordInfo?.word || wordInfo?.value }}</div>
+        </q-card-section>
 
-          <q-card-section class="q-pt-none">
-            <div v-if="wordInfo">
+        <q-card-section class="q-pt-none">
+          <div v-if="wordInfo">
               <p><strong>유형:</strong> {{ wordInfo.word_type || '정보 없음' }}</p>
               <p><strong>출현 횟수:</strong> {{ wordInfo.total_cnt || '정보 없음' }}</p>
               <p><strong>도메인 수:</strong> {{ wordInfo.domain_cnt || '정보 없음' }}</p>
               <p><strong>문서 수:</strong> {{ wordInfo.doc_cnt || '정보 없음' }}</p>
-            </div>
-            
-            <div class="q-mt-md">
+          </div>
+          
+          <div class="q-mt-md">
               <div class="text-subtitle1 dictionary-title">의미사전 정보</div>
               <div class="dictionary-divider"></div>
               <div v-if="dictionaryInfo" class="dictionary-content">
                 <p><strong>추가 횟수:</strong> {{ dictionaryInfo.total_add_count || '정보 없음' }}</p>
                 <p><strong>삭제 횟수:</strong> {{ dictionaryInfo.total_delete_count || '정보 없음' }}</p>
-              </div>
-              <div v-else class="dictionary-empty">
-                <p>의미사전에 등록되지 않음</p>
-              </div>
             </div>
-            
-            <div class="q-mt-md">
+              <div v-else class="dictionary-empty">
+              <p>의미사전에 등록되지 않음</p>
+            </div>
+          </div>
+          
+          <div class="q-mt-md">
               <div class="text-subtitle1 dictionary-title">불용어사전 정보</div>
               <div class="dictionary-divider"></div>
               <div v-if="stopwordsInfo" class="dictionary-content">
                 <p><strong>추가 횟수:</strong> {{ stopwordsInfo.total_add_count || '정보 없음' }}</p>
                 <p><strong>삭제 횟수:</strong> {{ stopwordsInfo.total_delete_count || '정보 없음' }}</p>
-              </div>
+            </div>
               <div v-else class="dictionary-empty">
-                <p>불용어사전에 등록되지 않음</p>
-              </div>
+              <p>불용어사전에 등록되지 않음</p>
+            </div>
             </div>
             
             <div class="q-mt-md">
@@ -185,27 +314,27 @@
                   val="stopwords"
                   label="불용어사전"
                   class="q-mb-sm"
-                />
-              </div>
+              />
             </div>
-            
+          </div>
+          
             <div class="q-mt-md">
               <div class="dictionary-actions">
-                <q-btn 
+              <q-btn 
                   color="primary" 
                   :label="selectedDictionary === 'meaning' ? '의미사전에 추가' : '불용어사전에 추가'" 
-                  size="sm"
+                size="sm"
                   @click="handleDictionaryAction('add')"
-                />
-                <q-btn 
-                  color="negative" 
+              />
+              <q-btn 
+                color="negative" 
                   :label="selectedDictionary === 'meaning' ? '의미사전에서 삭제' : '불용어사전에서 삭제'" 
-                  size="sm"
+                size="sm"
                   class="q-ml-sm"
                   @click="handleDictionaryAction('remove')"
-                />
-              </div>
+              />
             </div>
+          </div>
           </q-card-section>
         </q-card>
       </div>
@@ -214,7 +343,7 @@
 </template>
 
 <script>
-import { defineComponent, ref, onMounted, watch, nextTick } from 'vue'
+import { defineComponent, ref, onMounted, watch, nextTick, computed } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from '../boot/axios'
 import { useRoute, useRouter } from 'vue-router'
@@ -275,7 +404,7 @@ export default defineComponent({
 
     const getTextColorClass = (wordType, dictionary) => {
       if (dictionary === 'stopwords') {
-        return `text-${selectedStopwordsColor.value}`
+        return 'text-white'
       } else if (dictionary === 'meaning') {
         return 'text-blue'
       } else if (dictionary === 'both') {
@@ -310,12 +439,12 @@ export default defineComponent({
           const documentsWithCategories = response.data.document.map(doc => {
             console.log('세그먼트 데이터:', doc)
             return {
-              ...doc,
-              cate1,
-              cate2,
+            ...doc,
+            cate1,
+            cate2,
               tokens: doc.tokens ? doc.tokens.map(token => ({
-                ...token,
-                cate1,
+              ...token,
+              cate1,
                 cate2,
                 highlight: true
               })) : []
@@ -401,38 +530,6 @@ export default defineComponent({
         throw error
       }
     }
-
-    // const processNextFile = async () => {
-    //   if (currentFileIndex.value >= filePaths.value.length - 1) {
-    //     return
-    //   }
-
-    //   // 현재 문서의 단어들을 사전에 저장
-    //   if (documents.value.length > 0) {
-    //     const { meaningDictionaryCount, stopwordsCount } = await saveWordsToDictionaries(documents.value)
-    //     $q.notify({
-    //       color: 'positive',
-    //       message: `의미사전에 ${meaningDictionaryCount}개, 불용어사전에 ${stopwordsCount}개의 단어가 추가되었습니다.`,
-    //       icon: 'check',
-    //       position: 'top',
-    //       timeout: 3000
-    //     })
-    //   }
-
-    //   currentFileIndex.value++
-    //   const nextFilePath = filePaths.value[currentFileIndex.value]
-    //   currentFilePath.value = nextFilePath
-      
-    //   // URL 업데이트
-    //   const encodedPath = encodeURIComponent(nextFilePath)
-    //   window.history.replaceState(
-    //     {}, 
-    //     '', 
-    //     `/document?file_path=${encodedPath}`
-    //   )
-      
-    //   await fetchDocument(nextFilePath)
-    // }
 
     const fetchDictionaryInfo = async (word) => {
       try {
@@ -633,22 +730,6 @@ export default defineComponent({
             message: `의미사전에 ${meaningDictionaryCount}개, 불용어사전에 ${stopwordsCount}개의 단어가 추가되었습니다.`,
             duration: 3000
           })
-        }
-        
-        // 통계 데이터 가져오기
-        const statisticsResponse = await api.post('/token/document/statistics', {
-          file_path: currentFilePath.value
-        })
-
-        if (statisticsResponse.data && statisticsResponse.data.success) {
-          // localStorage에 통계 데이터 저장
-          localStorage.setItem('documentStatistics', JSON.stringify(statisticsResponse.data.statistics))
-          localStorage.setItem('documentPath', currentFilePath.value)
-          
-          // 통계 페이지로 이동
-          await router.push('/document/statistics')
-        } else {
-          throw new Error('통계 데이터를 가져오는데 실패했습니다.')
         }
       } catch (error) {
         console.error('문서 저장 중 오류:', error)
@@ -862,86 +943,143 @@ export default defineComponent({
     }
 
     // 디렉토리 트리 데이터 생성
-    const createDirectoryTree = (filePath) => {
-      const parts = filePath.split('/')
-      let currentPath = ''
-      let parentNode = null
-      const tree = []
+    const createDirectoryTree = (paths) => {
+      console.log('Creating directory tree with paths:', paths)
       
-      // /data 폴더까지의 경로를 저장
-      const dataIndex = parts.findIndex(part => part === 'data')
-      if (dataIndex !== -1) {
-        basePathParts.value = parts.slice(0, dataIndex + 1)
+      // paths가 배열이 아닌 경우 빈 배열로 처리
+      if (!paths || !Array.isArray(paths)) {
+        console.error('Invalid paths:', paths)
+        return []
+      }
+
+      const tree = []
+      const pathMap = new Map()
+
+      // 모든 파일 경로를 순회하며 트리 구조 생성
+      paths.forEach(filePath => {
+        if (!filePath) return  // 빈 경로는 건너뛰기
         
-        // /data 이후의 경로로 트리 생성
-        const subParts = parts.slice(dataIndex + 1)
-        if (subParts.length > 0) {
-          subParts.forEach((part, index) => {
+        const parts = filePath.split('/')
+        let currentPath = ''
+        let parentNode = null
+        
+        // /data 폴더까지의 경로를 저장
+        const dataIndex = parts.findIndex(part => part === 'data')
+        if (dataIndex !== -1) {
+          basePathParts.value = parts.slice(0, dataIndex + 1)
+          
+          // /data 이후의 경로로 트리 생성
+          const subParts = parts.slice(dataIndex + 1)
+          if (subParts.length > 0) {
+            subParts.forEach((part, index) => {
+              currentPath += (index === 0 ? '' : '/') + part
+              
+              if (!pathMap.has(currentPath)) {
+                const node = {
+                  id: currentPath,
+                  label: part,
+                  path: currentPath,
+                  children: []
+                }
+                
+                if (index === 0) {
+                  tree.push(node)
+                } else if (parentNode) {
+                  parentNode.children.push(node)
+                }
+                
+                pathMap.set(currentPath, node)
+                parentNode = node
+              } else {
+                parentNode = pathMap.get(currentPath)
+              }
+            })
+          }
+        } else {
+          // /data 폴더가 없는 경우 전체 경로를 트리로 표시
+          basePathParts.value = []
+          parts.forEach((part, index) => {
             currentPath += (index === 0 ? '' : '/') + part
-            const node = {
-              id: currentPath,
-              label: part,
-              path: currentPath,
-              children: []
-            }
             
-            if (index === 0) {
-              tree.push(node)
+            if (!pathMap.has(currentPath)) {
+              const node = {
+                id: currentPath,
+                label: part,
+                path: currentPath,
+                children: []
+              }
+              
+              if (index === 0) {
+                tree.push(node)
+              } else if (parentNode) {
+                parentNode.children.push(node)
+              }
+              
+              pathMap.set(currentPath, node)
               parentNode = node
             } else {
-              parentNode.children.push(node)
-              parentNode = node
+              parentNode = pathMap.get(currentPath)
             }
           })
         }
-      } else {
-        // /data 폴더가 없는 경우 전체 경로를 트리로 표시
-        basePathParts.value = []
-        parts.forEach((part, index) => {
-          currentPath += (index === 0 ? '' : '/') + part
-          const node = {
-            id: currentPath,
-            label: part,
-            path: currentPath,
-            children: []
-          }
-          
-          if (index === 0) {
-            tree.push(node)
-            parentNode = node
-          } else {
-            parentNode.children.push(node)
-            parentNode = node
-          }
-        })
-      }
-      
+      })
+
       return tree
     }
 
     // 노드 선택 핸들러
     const handleNodeSelect = (nodeId) => {
-      if (nodeId === 'root') return
+      console.log('노드 선택됨:', nodeId)
+      
+      if (nodeId === 'root') {
+        console.log('루트 노드 선택 무시')
+        return
+      }
       
       const node = findNodeById(directoryTree.value, nodeId)
+      console.log('찾은 노드:', node)
+      
       if (node && node.path) {
+        console.log('현재 파일 경로:', currentFilePath.value)
+        console.log('새 파일 경로:', node.path)
+        
         // 현재 파일 경로와 다른 경우에만 처리
         if (node.path !== currentFilePath.value) {
+          console.log('새 문서 로드 시작')
           currentFilePath.value = node.path
           fetchDocument(node.path)
+          
+          // 통계 모드가 활성화되어 있다면 비활성화
+          if (showStatisticsMode.value) {
+            console.log('통계 모드 비활성화')
+            showStatisticsMode.value = false
+          }
+        } else {
+          console.log('동일한 문서 선택됨, 무시')
         }
+      } else {
+        console.log('유효하지 않은 노드:', node)
       }
     }
 
     // 노드 ID로 노드 찾기
     const findNodeById = (nodes, id) => {
+      console.log('노드 찾기 시작:', { nodes, id })
+      
       for (const node of nodes) {
-        if (node.id === id) return node
+        if (node.id === id) {
+          console.log('노드 찾음:', node)
+          return node
+        }
         if (node.children && node.children.length > 0) {
           const found = findNodeById(node.children, id)
-          if (found) return found
+          if (found) {
+            console.log('하위 노드에서 찾음:', found)
+            return found
+          }
         }
       }
+      console.log('노드를 찾지 못함')
       return null
     }
 
@@ -956,16 +1094,13 @@ export default defineComponent({
         const decodedPath = decodeURIComponent(encodedPath)
         console.log('디코딩된 파일 경로:', decodedPath)
         
-        // 디렉토리 트리 생성
-        directoryTree.value = createDirectoryTree(decodedPath)
-        // 현재 파일 노드 선택
-        selectedNode.value = decodedPath
-        
         // 모든 파일 경로 가져오기
         const allFilePaths = urlParams.get('all_file_paths')
         if (allFilePaths) {
           try {
-            filePaths.value = JSON.parse(decodeURIComponent(allFilePaths))
+            const parsedPaths = JSON.parse(decodeURIComponent(allFilePaths))
+            // parsedPaths가 배열이 아닌 경우 배열로 변환
+            filePaths.value = Array.isArray(parsedPaths) ? parsedPaths : [parsedPaths]
             totalFiles.value = filePaths.value.length
             console.log('모든 파일 경로:', filePaths.value)
             
@@ -975,6 +1110,11 @@ export default defineComponent({
             if (currentFileIndex.value === -1) {
               currentFileIndex.value = 0
             }
+            
+            // 디렉토리 트리 생성
+            directoryTree.value = createDirectoryTree(filePaths.value)
+            // 현재 파일 노드 선택
+            selectedNode.value = decodedPath
             
             fetchDocument(decodedPath)
           } catch (error) {
@@ -989,9 +1129,15 @@ export default defineComponent({
         } else {
           // 단일 파일 경로만 있는 경우
           currentFilePath.value = decodedPath
-          filePaths.value = [decodedPath]
+          filePaths.value = [decodedPath]  // 배열로 설정
           totalFiles.value = 1
           currentFileIndex.value = 0
+          
+          // 디렉토리 트리 생성
+          directoryTree.value = createDirectoryTree(filePaths.value)
+          // 현재 파일 노드 선택
+          selectedNode.value = decodedPath
+          
           fetchDocument(decodedPath)
         }
       } else {
@@ -1038,6 +1184,161 @@ export default defineComponent({
       adjustFileNameSize()
     })
 
+    const showStatisticsMode = ref(false)
+    const isStatisticsLoading = ref(false)
+    const statistics = ref({
+      statistics: {
+        statistics: {
+          overall_statistics: {
+            average: 0,
+            std_dev: 0
+          },
+          total_words: 0,
+          word_types: {},
+          word_statistics: {}
+        }
+      }
+    })
+
+    const wordStatisticsColumns = [
+      { name: 'word', label: '단어', field: 'word', align: 'left' },
+      // { name: 'word_type', label: '품사', field: 'word_type', align: 'left' },
+      { name: 'total_cnt', label: '총 발생', field: 'total_cnt', align: 'center' },
+      { name: 'doc_cnt', label: '문서 내 발생 횟수', field: 'doc_cnt', align: 'center' },
+      { name: 'cate1_cnt', label: '카테고리1 발생 횟수', field: 'cate1_cnt', align: 'center' },
+      { name: 'cate2_cnt', label: '카테고리2 발생 횟수', field: 'cate2_cnt', align: 'center' },
+      { name: 'average', label: '문서 내 분할별 평균', field: 'average', align: 'center' },
+      { name: 'std_dev', label: '문서 내 분할별 표준편차', field: 'std_dev', align: 'center' },
+      // { name: 'segment_frequencies', label: '분할별 발생', field: 'segment_frequencies', align: 'left' }
+    ]
+
+    const averageRange = ref({
+      min: 0,
+      max: 100
+    })
+
+    const stdDevRange = ref({
+      min: 0,
+      max: 100
+    })
+
+    const wordStatisticsRows = computed(() => {
+      if (!statistics.value?.statistics?.statistics?.word_statistics) return []
+      
+      return Object.entries(statistics.value.statistics.statistics.word_statistics)
+        .map(([word, stats]) => ({
+          word,
+          ...stats,
+          average: stats.average?.toFixed(4) || '0.0000',
+          std_dev: stats.std_dev?.toFixed(4) || '0.0000'
+        }))
+        .filter(row => {
+          const avg = parseFloat(row.average)
+          const std = parseFloat(row.std_dev)
+          return avg >= averageRange.value.min && 
+                 avg <= averageRange.value.max && 
+                 std >= stdDevRange.value.min && 
+                 std <= stdDevRange.value.max
+        })
+    })
+
+    const showStatistics = async () => {
+      console.log('통계 보기 버튼 클릭됨')
+      console.log('현재 선택된 노드:', selectedNode.value)
+      
+      if (!selectedNode.value) {
+        console.log('선택된 노드가 없음')
+        ElMessage({
+          type: 'warning',
+          message: '통계를 볼 문서를 선택해주세요.',
+          duration: 3000
+        })
+        return
+      }
+
+      try {
+        isStatisticsLoading.value = true
+        if (selectedNode.value) {
+          console.log('API 요청 시작:', selectedNode.value)
+          const response = await api.post('/token/document/statistics', {
+            file_path: selectedNode.value
+          })
+          console.log('API 응답:', response.data)
+          
+          if (response.data.success) {
+            console.log('통계 데이터 설정 전:', statistics.value)
+            statistics.value = response.data
+            console.log('통계 데이터 설정 후:', statistics.value)
+            
+            console.log('통계 모드 활성화 전:', showStatisticsMode.value)
+            showStatisticsMode.value = true
+            console.log('통계 모드 활성화 후:', showStatisticsMode.value)
+          } else {
+            console.log('API 응답 실패:', response.data)
+            ElMessage({
+              type: 'error',
+              message: '통계 데이터를 가져오는데 실패했습니다.',
+              duration: 3000
+            })
+          }
+        }
+      } catch (error) {
+        console.error('통계 데이터 가져오기 오류:', error)
+        console.error('에러 상세:', error.response?.data)
+        ElMessage({
+          type: 'error',
+          message: '통계 데이터를 가져오는 중 오류가 발생했습니다.',
+          duration: 3000
+        })
+      } finally {
+        isStatisticsLoading.value = false
+      }
+    }
+
+    const isParsingLoading = ref(false)
+
+    const parseDocumentWithRange = async () => {
+      try {
+        isParsingLoading.value = true
+        const response = await api.post('/token/document/parse_with_range', {
+          file_path: selectedNode.value,
+          average_range: {
+            min: averageRange.value.min,
+            max: averageRange.value.max
+          },
+          std_dev_range: {
+            min: stdDevRange.value.min,
+            max: stdDevRange.value.max
+          }
+        })
+
+        if (response.data.success) {
+          ElMessage({
+            type: 'success',
+            message: '문서가 성공적으로 파싱되었습니다.',
+            duration: 3000
+          })
+          // 문서 새로고침
+          fetchDocument(selectedNode.value)
+        } else {
+          ElMessage({
+            type: 'error',
+            message: response.data.message || '문서 파싱에 실패했습니다.',
+            duration: 3000
+          })
+        }
+      } catch (error) {
+        console.error('문서 파싱 중 오류:', error)
+        ElMessage({
+          type: 'error',
+          message: '문서 파싱 중 오류가 발생했습니다.',
+          duration: 3000
+        })
+      } finally {
+        isParsingLoading.value = false
+      }
+    }
+
     return {
       documents,
       currentFilePath,
@@ -1049,7 +1350,6 @@ export default defineComponent({
       wordInfo,
       dictionaryInfo,
       stopwordsInfo,
-      // processNextFile,
       getTextColorClass,
       showWordInfo,
       closeWordInfo,
@@ -1069,35 +1369,22 @@ export default defineComponent({
       handleNodeSelect,
       basePathParts,
       fileNameRef,
+      showStatisticsMode,
+      statistics,
+      wordStatisticsColumns,
+      wordStatisticsRows,
+      showStatistics,
+      isStatisticsLoading,
+      averageRange,
+      stdDevRange,
+      isParsingLoading,
+      parseDocumentWithRange
     }
   },
 })
 </script>
 
 <style scoped>
-.document-card {
-  max-width: 800px;
-  margin: 0 auto;
-  border-radius: 12px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-.segment-content {
-  line-height: 1.6;
-  padding: 16px;
-  background: #f8f9fa;
-  border-radius: 8px;
-}
-
-.segment-text {
-  padding: 8px;
-  background: #fff;
-  border-radius: 4px;
-  font-size: 1.1em;
-  white-space: pre-wrap;
-  line-height: 1.8;
-}
-
 .token {
   display: inline;
   padding: 0;
@@ -1109,368 +1396,6 @@ export default defineComponent({
 
 .token:hover {
   text-decoration: underline;
-}
-
-.text-black {
-  color: #000000;
-}
-
-.text-blue {
-  color: #1976D2;
-}
-
-.text-green {
-  color: #2E7D32;
-}
-
-.text-red {
-  color: #D32F2F;
-}
-
-.text-purple {
-  color: #7B1FA2;
-}
-
-.text-orange {
-  color: #F57C00;
-}
-
-.text-grey {
-  color: #9e9e9e;
-}
-
-.text-light-blue {
-  color: #64B5F6;
-}
-
-.text-light-green {
-  color: #81C784;
-}
-
-.text-light-red {
-  color: #E57373;
-}
-
-.text-light-purple {
-  color: #BA68C8;
-}
-
-.text-light-orange {
-  color: #FFB74D;
-}
-
-.text-light-yellow {
-  color: #FFE082;
-}
-
-.color-btn {
-  min-width: 80px;
-  margin: 4px;
-  display: inline-block;
-  font-weight: 500;
-  border: 2px solid transparent;
-}
-
-.color-btn.selected-color {
-  font-weight: bold;
-  border: 2px solid #333;
-  opacity: 0.9;
-}
-
-/* 의미사전 색상 버튼 스타일 */
-.color-btn[color="black"] {
-  background-color: #000000;
-  color: white;
-}
-
-.color-btn[color="blue"] {
-  background-color: #1565C0;
-  color: white;
-}
-
-.color-btn[color="green"] {
-  background-color: #1B5E20;
-  color: white;
-}
-
-.color-btn[color="red"] {
-  background-color: #B71C1C;
-  color: white;
-}
-
-.color-btn[color="purple"] {
-  background-color: #4A148C;
-  color: white;
-}
-
-.color-btn[color="orange"] {
-  background-color: #E65100;
-  color: white;
-}
-
-/* 불용어사전 색상 버튼 스타일 */
-.bg-grey {
-  background-color: #BDBDBD !important;
-  color: #333 !important;
-}
-
-.bg-light-blue {
-  background-color: #BBDEFB !important;
-  color: #333 !important;
-}
-
-.bg-light-green {
-  background-color: #C8E6C9 !important;
-  color: #333 !important;
-}
-
-.bg-light-red {
-  background-color: #FFE4E1 !important;
-  color: #333 !important;
-}
-
-.bg-light-purple {
-  background-color: #F3E5F5 !important;
-  color: #333 !important;
-}
-
-.bg-light-orange {
-  background-color: #FFE0B2 !important;
-  color: #333 !important;
-}
-
-.bg-light-yellow {
-  background-color: #FFF9C4 !important;
-  color: #333 !important;
-}
-
-.word-info-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.word-info-content {
-  background-color: white;
-  border-radius: 8px;
-  width: 80%;
-  max-width: 600px;
-  max-height: 80vh;
-  overflow-y: auto;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-}
-
-.word-info-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px;
-  border-bottom: 1px solid #eee;
-}
-
-.word-info-header h3 {
-  margin: 0;
-  font-size: 1.5rem;
-}
-
-.close-button {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: #666;
-}
-
-.word-info-body {
-  padding: 16px;
-}
-
-.word-info-section {
-  margin-bottom: 20px;
-}
-
-.word-info-section h4 {
-  margin-top: 0;
-  margin-bottom: 10px;
-  color: #333;
-  border-bottom: 1px solid #eee;
-  padding-bottom: 5px;
-}
-
-.word-info-section p {
-  margin: 8px 0;
-}
-
-.word-info-section strong {
-  margin-right: 8px;
-  color: #555;
-}
-
-.row.q-gutter-sm {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 0;
-  padding: 8px;
-}
-
-.row.q-gutter-sm > * {
-  margin: 0;
-}
-
-.dictionary-title {
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 2px;
-  font-size: 0.9rem;
-}
-
-.dictionary-divider {
-  height: 1px;
-  background-color: #e0e0e0;
-  margin-bottom: 8px;
-  border-radius: 1px;
-}
-
-.dictionary-content {
-  background-color: #f9f9f9;
-  padding: 8px 12px;
-  border-radius: 6px;
-  margin-bottom: 6px;
-  font-size: 0.85rem;
-  line-height: 1.3;
-}
-
-.dictionary-content p {
-  margin: 4px 0;
-}
-
-.dictionary-content strong {
-  font-weight: 600;
-}
-
-.dictionary-empty {
-  color: #999;
-  font-style: italic;
-  padding: 4px 0;
-  font-size: 0.85rem;
-  line-height: 1.3;
-}
-
-.dictionary-actions {
-  display: flex;
-  justify-content: flex-start;
-  gap: 8px;
-  margin-top: 6px;
-}
-
-/* 팝업 제목 크기 조정 */
-.text-h6 {
-  font-size: 1.1rem !important;
-  margin-bottom: 4px;
-}
-
-/* 라디오 버튼 레이블 크기 조정 */
-.q-radio {
-  font-size: 0.85rem;
-  margin-bottom: 4px;
-}
-
-/* 버튼 크기 조정 */
-.dictionary-actions .q-btn {
-  font-size: 0.85rem;
-  padding: 3px 6px;
-  min-height: 28px;
-}
-
-/* 카드 섹션 패딩 조정 */
-.q-card-section {
-  padding: 8px 16px;
-}
-
-.q-card-section.q-pt-none {
-  padding-top: 0;
-}
-
-.directory-tree-card {
-  height: calc(100vh - 100px);
-  overflow-y: auto;
-  border-radius: 12px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  background-color: #fff;
-}
-
-.directory-tree {
-  font-size: 0.9rem;
-  margin-top: 8px;
-}
-
-.directory-tree .q-tree__node {
-  padding: 4px 0;
-}
-
-.directory-tree .q-tree__node--selected {
-  background-color: #e3f2fd;
-  border-radius: 4px;
-}
-
-.directory-tree .q-tree__node-header {
-  padding: 4px 8px;
-  border-radius: 4px;
-}
-
-.directory-tree .q-tree__node-header:hover {
-  background-color: #f5f5f5;
-}
-
-.document-card {
-  height: calc(100vh - 100px);
-  overflow-y: auto;
-  border-radius: 12px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-.path-breadcrumb {
-  padding: 8px;
-  background-color: #f5f5f5;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  line-height: 1.4;
-}
-
-.path-part {
-  color: #666;
-}
-
-.path-part:last-child {
-  color: #1976D2;
-  font-weight: 500;
-}
-
-.file-name-container {
-  width: 100%;
-  overflow: hidden;
-  text-align: center;
-  padding: 0 8px;
-  min-height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.file-name {
-  display: inline-block;
-  white-space: nowrap;
-  transition: font-size 0.2s ease;
-  font-size: 1.5rem;
-  font-weight: 500;
-  color: #333;
+  background-color: rgba(0, 0, 0, 0.05);
 }
 </style>

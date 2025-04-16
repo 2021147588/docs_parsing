@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 import pandas as pd
 import io
 import os
+import json
 
 from bp.services.document_token_service import DocumentParsingService
 from bp.services.dictionary_service import DictionaryService
@@ -15,7 +16,8 @@ bp = Blueprint('token', __name__, url_prefix='/token')
 def upload_files_and_make_token_tables():
     
     metadata_file = request.files['metadata']
-    lang = request.form['lang']
+    pii_options = request.form.get('pii_options', '{}')
+    pii_options = json.loads(pii_options)
     
     # 엑셀 파일 확인
     if not metadata_file.filename.endswith(('.xlsx', '.xls')):
@@ -23,7 +25,7 @@ def upload_files_and_make_token_tables():
             'success': False,
             'message': '메타데이터는 엑셀 파일이어야 합니다.'
         }), 400
-    
+    lang = 'kor'
     # 엑셀 파일 처리
     try:
         df = pd.read_excel(io.BytesIO(metadata_file.read()))
@@ -536,56 +538,7 @@ def get_document_statistics():
 
         # DocumentParsingService 인스턴스 생성
         document_parsing_service = DocumentParsingService()
-        
-        # 전체 문서의 토큰 정보 가져오기
-        document_tokens = document_parsing_service.document_token_repository.get_all_tokens()
-        
-        # 통계 정보 계산
-        statistics = {
-            'total_tokens': len(document_tokens),
-            'segments': {},
-            'categories': {},
-            'domains': {}
-        }
-        
-        # 분할별 통계 계산
-        for token in document_tokens:
-            # 분할 통계
-            if token.col_id not in statistics['segments']:
-                statistics['segments'][token.col_id] = {
-                    'token_count': 0,
-                    'unique_tokens': set()
-                }
-            statistics['segments'][token.col_id]['token_count'] += token.col_cnt
-            statistics['segments'][token.col_id]['unique_tokens'].add(token.value)
-            
-            # 카테고리 통계
-            if token.cate1:
-                if token.cate1 not in statistics['categories']:
-                    statistics['categories'][token.cate1] = {
-                        'token_count': 0,
-                        'unique_tokens': set()
-                    }
-                statistics['categories'][token.cate1]['token_count'] += (token.cate1_cnt or 0)
-                statistics['categories'][token.cate1]['unique_tokens'].add(token.value)
-            
-            # 도메인 통계
-            if token.document_name:
-                if token.document_name not in statistics['domains']:
-                    statistics['domains'][token.document_name] = {
-                        'token_count': 0,
-                        'unique_tokens': set()
-                    }
-                statistics['domains'][token.document_name]['token_count'] += (token.domain_cnt or 0)
-                statistics['domains'][token.document_name]['unique_tokens'].add(token.value)
-        
-        # unique_tokens를 리스트로 변환
-        for segment in statistics['segments'].values():
-            segment['unique_tokens'] = list(segment['unique_tokens'])
-        for category in statistics['categories'].values():
-            category['unique_tokens'] = list(category['unique_tokens'])
-        for domain in statistics['domains'].values():
-            domain['unique_tokens'] = list(domain['unique_tokens'])
+        statistics = document_parsing_service.get_document_statistics(file_path)
         
         return jsonify({
             'success': True,

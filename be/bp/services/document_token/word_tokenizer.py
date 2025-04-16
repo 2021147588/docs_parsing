@@ -12,8 +12,36 @@ pos_tag_dict = {
     "NNP": "proper_noun",  # 고유 명사
     "VV": "verb",          # 동사
     "SL": "alphabet",
-    "VA": "adjective"
+    "VA": "adjective",
+    "SN": "number"        # 숫자
 }
+
+# 특수문자 제거
+stopwords = set([
+    'SN', # 숫자
+    'SB', # 순서 있는 글머리(가. 나. 1. 2. 가) 나) 등)
+    'SF',  # 종결 부호(. ! ?)
+    'SP',  # 구분 부호(, / : ;)
+    'SS',  # 인용 부호 및 괄호(' " ( ) [ ] < > { } ― ' ' " " ≪ ≫ 등)
+    'SSO', # SS 중 여는 부호
+    'SSC', # SS 중 닫는 부호
+    'SE',  # 줄임표(…)
+    'SO',  # 붙임표(- ~)
+    'SW',  # 기타 특수 문자
+    'SH',  # 한자
+    'SB',  # 순서 있는 글머리(가. 나. 1. 2. 가) 나) 등)
+    'UN',  # 분석 불능
+    'JKS', # 주격 조사
+    'JKC', # 보격 조사
+    'JKG', # 관형격 조사
+    'JKO', # 목적격 조사
+    'JKB', # 부사격 조사
+    'JKV', # 호격 조사
+    'JKQ', # 인용격 조사
+    'JX',  # 보조사
+    'JC'   # 접속 조사
+])
+# 개인정보 태그 딕셔너리
 personal_information_tag_dict = {
     "W_EMAIL": "이메일 주소",       # 이메일 주소
     "W_SERIAL": "일련번호(전화번호, 통장번호, IP주소 등)",  # 일련번호 (전화번호, IP 등)
@@ -66,9 +94,8 @@ class WordTokenizer:
     
                 self.token_positions[t.form] = index
                     
-                if t.tag in pos_tag_dict.keys(): # 명사, 동사 추출
-                    
-                    s_t = Token(idx=index, word=t.form, tag=pos_tag_dict[t.tag], lang=self.lang, seg_id=seg_id)
+                if t.tag not in stopwords: 
+                    s_t = Token(idx=index, word=t.form, tag=t.tag, lang=self.lang, seg_id=seg_id)
                     seg_tokens.append(s_t)
                 elif t.tag in personal_information_tag_dict.keys(): # 개인정보 추출
                     s_t = Token(idx=index, word=t.form, tag="개인 정보", lang=self.lang, seg_id=seg_id, personal_infromation=personal_information_tag_dict[t.tag])

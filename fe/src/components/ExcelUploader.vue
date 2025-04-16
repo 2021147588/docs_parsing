@@ -33,6 +33,14 @@
               <q-radio v-model="selectedLang" val="eng" label="English" />
             </div>
           </div>
+          <div class="col-12">
+            <div class="text-center q-mb-md">개인정보 판별 옵션</div>
+            <div class="row justify-center q-gutter-md">
+              <q-checkbox v-model="piiOptions.phone" label="전화번호" />
+              <q-checkbox v-model="piiOptions.email" label="이메일" />
+              <q-checkbox v-model="piiOptions.id" label="주민번호" />
+            </div>
+          </div>
           <div class="col-12 text-center">
             <q-btn
               color="primary"
@@ -119,6 +127,11 @@ export default defineComponent({
     const currentFileIndex = ref(0)
     const totalFiles = ref(0)
     const filePaths = ref([])
+    const piiOptions = ref({
+      phone: false,
+      email: false,
+      id: false
+    })
 
     const showNotification = (message, color = 'positive', icon = 'check') => {
       if ($q && $q.notify) {
@@ -159,6 +172,7 @@ export default defineComponent({
       const formData = new FormData()
       formData.append('metadata', selectedFile.value)
       formData.append('lang', selectedLang.value)
+      formData.append('pii_options', JSON.stringify(piiOptions.value))
 
       try {
         const response = await api.post('/token/upload', formData)
@@ -214,7 +228,8 @@ export default defineComponent({
       uploadFile,
       handleTokenClick,
       onRejected,
-      processNextFile
+      processNextFile,
+      piiOptions
     }
   }
 })

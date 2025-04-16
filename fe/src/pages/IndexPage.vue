@@ -26,10 +26,11 @@
             </q-file>
           </div>
           <div class="col-12">
-            <div class="text-center q-mb-md">언어 선택</div>
+            <div class="text-center q-mb-md">개인정보 판별 옵션</div>
             <div class="row justify-center q-gutter-md">
-              <q-radio v-model="selectedLang" val="kor" label="한국어" />
-              <q-radio v-model="selectedLang" val="eng" label="English" />
+              <q-checkbox v-model="piiOptions.phone" label="전화번호" />
+              <q-checkbox v-model="piiOptions.email" label="이메일" />
+              <q-checkbox v-model="piiOptions.id" label="주민번호" />
             </div>
           </div>
           <div class="col-12 text-center">
@@ -37,7 +38,7 @@
               color="primary"
               label="업로드"
               :loading="isUploading"
-              :disable="!selectedFile || !selectedLang"
+              :disable="!selectedFile"
               @click="uploadFile"
             />
           </div>
@@ -65,16 +66,20 @@ export default defineComponent({
     const $q = useQuasar()
     const router = useRouter()
     const selectedFile = ref(null)
-    const selectedLang = ref(null)
     const isUploading = ref(false)
+    const piiOptions = ref({
+      phone: false,
+      email: false,
+      id: false
+    })
 
     const uploadFile = async () => {
-      if (!selectedFile.value || !selectedLang.value) return
+      if (!selectedFile.value) return
 
       isUploading.value = true
       const formData = new FormData()
       formData.append('metadata', selectedFile.value)
-      formData.append('lang', selectedLang.value)
+      formData.append('pii_options', JSON.stringify(piiOptions.value))
 
       try {
         const response = await api.post('/token/upload', formData)
@@ -98,7 +103,6 @@ export default defineComponent({
           }
 
           selectedFile.value = null
-          selectedLang.value = null
         }
       } catch (error) {
         console.error('파일 업로드 중 오류가 발생했습니다:', error)
@@ -119,10 +123,10 @@ export default defineComponent({
 
     return {
       selectedFile,
-      selectedLang,
       isUploading,
       uploadFile,
-      onRejected
+      onRejected,
+      piiOptions
     }
   }
 })
