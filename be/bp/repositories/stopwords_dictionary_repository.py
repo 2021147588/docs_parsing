@@ -18,66 +18,73 @@ class StopwordsRepository:
         """사용자 정의 불용어 사전 테이블을 생성합니다."""
         
         # 사용자 정의 불용어 사전 테이블 생성
-        self.cursor.execute('''
-        CREATE TABLE IF NOT EXISTS stopwords (
-            word TEXT,
-            cate1 TEXT,
-            cate2 TEXT,
-            regi_date TEXT,
-            domain TEXT,
-            domain_id TEXT,
-            user_id TEXT,
-            add_count INTEGER DEFAULT 0,
-            delete_count INTEGER DEFAULT 0, 
-            PRIMARY KEY (word, cate1, cate2, user_id)
+        self.cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS stopwords (
+                word VARCHAR(255),
+                cate1 VARCHAR(100),
+                cate2 VARCHAR(100),
+                regi_date TEXT,
+                domain TEXT,
+                domain_id TEXT,
+                user_id VARCHAR(100),
+                add_count INTEGER DEFAULT 0,
+                delete_count INTEGER DEFAULT 0,
+                PRIMARY KEY (word, cate1, cate2, user_id)
+            );
+        """
         )
-        ''')
 
-    def add_to_stopwords(self, word: str, cate1: str = None, cate2: str = None, increment_count: bool = True) -> Dict:
+    def add_to_stopwords(self, word: str, cate1: str = None, cate2: str = None, increment_count: bool = True, user_id: int = 1) -> Dict:
         """
         불용어사전에 단어를 추가합니다.
         
         Args:
             word (str): 추가할 단어
-            increment_count (bool, optional): 추가 카운트를 증가시킬지 여부. 기본값은 True.
+            cate1 (str, optional): 1차 카테고리
+            cate2 (str, optional): 2차 카테고리
+            increment_count (bool, optional): 추가 카운트를 증가시킬지 여부
+            user_id (int, optional): 사용자 ID. 기본값은 1.
             
         Returns:
             Dict: 추가 결과
         """
         try:
-            logger.info(f"불용어사전 단어: {word}, 증가 여부: {increment_count}")
+            logger.info(f"단어: {word}, 카테고리1: {cate1}, 카테고리2: {cate2}, 증가 여부: {increment_count}, 사용자 ID: {user_id}")
+            
             # 단어가 이미 존재하는지 확인
-            self.cursor.execute("SELECT word FROM stopwords WHERE word = %s", (word,))
+            query = "SELECT * FROM stopwords WHERE word = %s AND user_id = %s"
+            self.cursor.execute(query, (word, user_id))
             existing_word = self.cursor.fetchone()
+            
             if existing_word:
-                # 단어가 이미 존재하면 카운트만 증가 (increment_count가 True인 경우)
+                # 이미 존재하는 경우 add_count 증가
                 if increment_count:
-                    self.cursor.execute("""
-                        UPDATE stopwords 
-                        SET add_count = add_count + 1 
-                        WHERE word = %s
-                    """, (word,))
+                    update_query = "UPDATE stopwords SET add_count = add_count + 1 WHERE word = %s AND user_id = %s"
+                    self.cursor.execute(update_query, (word, user_id))
                 return {
                     'success': True,
-                    'message': '단어가 이미 존재합니다.'
+                    'message': '단어가 이미 존재합니다. 추가 카운트가 증가되었습니다.'
                 }
-            
-            # 새 단어 추가
-            self.cursor.execute("""
-                INSERT INTO stopwords (word, cate1, cate2, add_count)
-                VALUES (%s, %s, %s, %s)
-            """, (word, cate1, cate2, 1 if increment_count else 0))
-            
-            self.conn.commit()
-            return {
-                'success': True,
-                'message': '단어가 추가되었습니다.'
-            }
+            else:
+                # 새로운 단어 추가
+                insert_query = """
+                INSERT INTO stopwords (word, cate1, cate2, add_count, delete_count, user_id)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """
+                add_count = 1 if increment_count else 0
+                # cate2가 None이면 빈 문자열로 설정
+                cate2_value = cate2 if cate2 is not None else ''
+                self.cursor.execute(insert_query, (word, cate1, cate2_value, add_count, 0, user_id))
+                return {
+                    'success': True,
+                    'message': '단어가 성공적으로 추가되었습니다.'
+                }
         except Exception as e:
-            print(f"불용어 사전에 단어 추가 중 오류: {str(e)}")
+            logger.error(f"불용어사전에 단어 추가 중 오류: {e}")
             return {
                 'success': False,
-                'message': f"불용어 사전에 단어를 추가하는 중 오류가 발생했습니다: {str(e)}"
+                'message': f'불용어사전에 단어를 추가하는 중 오류가 발생했습니다: {str(e)}'
             }
     
     def remove_from_stopwords(self, word: str, cate1: str = None, cate2: str = None, increment_count: bool = True) -> Dict:
@@ -181,36 +188,34 @@ class StopwordsRepository:
             user_id: 사용자 ID 필터
             
         Returns:
-            검색 결과 목록과 추가/삭제 횟수 합계를 담은 딕셔너리
+            검색 결과 또는 None (정확한 단어가 없을 경우)
         """
-        
         try:
-            # 검색 결과를 가져오는 쿼리
+            # 정확한 단어 매칭으로 검색
             query = """
             SELECT * FROM stopwords 
-            WHERE word LIKE %s OR cate1 LIKE %s OR cate2 LIKE %s
+            WHERE word = %s
             """
-            params = [f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"]
+            params = [keyword]
             
             if user_id:
                 query += " AND user_id = %s"
                 params.append(user_id)
             
             self.cursor.execute(query, params)
+            row = self.cursor.fetchone()
             
-            columns = [description[0] for description in self.cursor.description]
-            results = []
-            
-            for row in self.cursor.fetchall():
-                results.append(dict(zip(columns, row)))
+            # 단어가 없으면 None 반환
+            if not row:
+                return None
             
             # 추가/삭제 횟수 합계를 계산하는 쿼리
             sum_query = """
             SELECT SUM(add_count) as total_add_count, SUM(delete_count) as total_delete_count
             FROM stopwords 
-            WHERE word LIKE %s OR cate1 LIKE %s OR cate2 LIKE %s
+            WHERE word = %s
             """
-            sum_params = [f"%{keyword}%", f"%{keyword}%", f"%{keyword}%"]
+            sum_params = [keyword]
             
             if user_id:
                 sum_query += " AND user_id = %s"
@@ -228,12 +233,8 @@ class StopwordsRepository:
                 'total_delete_count': total_delete_count
             }
         except Exception as e:
-            print(f"불용어 사전 검색 중 오류 발생: {e}")
-            return {
-                'results': [],
-                'total_add_count': 0,
-                'total_delete_count': 0
-            }
+            logger.error(f"불용어 사전 검색 중 오류 발생: {e}")
+            return None
     
     def update_stopwords_word(self, word: str, cate1: str = None, cate2: str = None, 
                              user_id: str = None) -> bool:

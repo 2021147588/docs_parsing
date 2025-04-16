@@ -16,54 +16,59 @@ class DictionaryService:
     def create_stopwords_dictionary(self):
         pass
     
-    def search_meaning_dictionary(self, keyword: str, user_id: str = None):
+    def search_meaning_dictionary(self, keyword: str, user_id: int = None) -> Dict:
         """
         의미사전에서 단어를 검색합니다.
         
         Args:
-            keyword (str): 검색할 키워드
-            user_id (str, optional): 사용자 ID
+            keyword (str): 검색할 단어
+            user_id (int, optional): 사용자 ID. 기본값은 None.
             
         Returns:
-            Dict: 검색 결과 목록과 추가/삭제 횟수 합계
+            Dict: 검색 결과 또는 None (단어가 없을 경우)
         """
         try:
             result = self.dictionary_repository.search_dictionary(keyword, user_id)
+            
+            # repository에서 None을 반환하면 None 반환
+            if result is None:
+                return False
+                
             return {
                 'meaning_word': result['word'],
                 'total_add_count': result['total_add_count'],
                 'total_delete_count': result['total_delete_count']
             }
         except Exception as e:
-            logger.error(f"의미사전 검색 중 오류 발생: {str(e)}", exc_info=True)
-            return {
-                'success': False,
-                'message': f'의미사전 검색 중 오류가 발생했습니다: {str(e)}'
-            }
-    def search_stopwords(self, keyword: str, user_id: str = None):
+            logger.error(f'의미사전 검색 중 오류: {str(e)}')
+            return False
+
+    def search_stopwords(self, keyword: str, user_id: int = None) -> Dict:
         """
         불용어사전에서 단어를 검색합니다.
         
         Args:
-            keyword (str): 검색할 키워드
-            user_id (str, optional): 사용자 ID
+            keyword (str): 검색할 단어
+            user_id (int, optional): 사용자 ID. 기본값은 None.
             
         Returns:
-            Dict: 검색 결과 목록과 추가/삭제 횟수 합계
+            Dict: 검색 결과 또는 None (단어가 없을 경우)
         """
         try:
             result = self.stopwords_repository.search_stopwords(keyword, user_id)
+            
+            # repository에서 None을 반환하면 None 반환
+            if result is None:
+                return False
+                
             return {
-                'stopword_word': result['word'],
+                'stopwords_word': result['word'],
                 'total_add_count': result['total_add_count'],
                 'total_delete_count': result['total_delete_count']
             }
         except Exception as e:
-            logger.error(f"불용어사전 검색 중 오류 발생: {str(e)}", exc_info=True)
-            return {
-                'success': False,
-                'message': f'불용어사전 검색 중 오류가 발생했습니다: {str(e)}'
-            }
+            logger.error(f'불용어사전 검색 중 오류: {str(e)}')
+            return False
     
     
     def add_to_dictionary(self, word: str, cate1: str = None, cate2: str = None, increment_count: bool = True) -> Dict:

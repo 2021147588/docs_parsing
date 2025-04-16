@@ -1,4 +1,3 @@
-
 import json
 from typing import List
 import datetime
@@ -25,29 +24,34 @@ class DocumentTokenRepository:
         create_table_query = """
         CREATE TABLE IF NOT EXISTS document_tokens (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    
-    value VARCHAR(255) NOT NULL,            -- 문서 내 단어
-    document_name VARCHAR(255) NOT NULL,    -- 문서 이름
-    col_id INT NOT NULL,                    -- 분할 정보 (seg_id)
-    word_type VARCHAR(50) NOT NULL,         -- 품사
-    cate1 VARCHAR(100) NOT NULL,            -- 분류1
-    cate2 VARCHAR(100) NOT NULL,            -- 분류2
-    document_path TEXT NOT NULL,            -- 문서 경로
-    pii_type VARCHAR(100),                  -- 개인정보 유형 (nullable)
 
-    total_cnt INT,                          -- 전체 도메인 발현 빈도
-    domain_cnt INT,                         -- 도메인 내 발현 빈도
-    cate1_cnt INT,                          -- 분류1 내 발현 빈도
-    cate2_cnt INT,                          -- 분류2 내 발현 빈도
-    doc_cnt INT,                            -- 문서 내 발현 빈도
-    col_cnt INT,                            -- 해당 분할 내 발현 빈도
+    value VARCHAR(255) NOT NULL,
+    document_name VARCHAR(255) NOT NULL,
+    col_id INT NOT NULL,
+    word_type VARCHAR(50) NOT NULL,
+    cate1 VARCHAR(100) NOT NULL,
+    cate2 VARCHAR(100) NOT NULL,
+    document_path VARCHAR(255) NOT NULL,  -- 수정됨
+    pii_type VARCHAR(100),
 
-    regi_date DATE NOT NULL,                -- 등록일
-    gap_avg FLOAT NOT NULL,                 -- 유격 평균
-    gap_sd FLOAT NOT NULL,                  -- 유격 편차
+    total_cnt INT,
+    domain_cnt INT,
+    cate1_cnt INT,
+    cate2_cnt INT,
+    doc_cnt INT,
+    col_cnt INT,
 
-    index_list JSON NOT NULL,               -- 인덱스 리스트
-    `index` INT                         -- 단일 인덱스 값 (옵션)
+    regi_date DATE NOT NULL,
+    gap_avg FLOAT NOT NULL,
+    gap_sd FLOAT NOT NULL,
+
+    index_list JSON NOT NULL,
+    `index` INT,
+
+    INDEX idx_value (value(255)),
+    INDEX idx_document_path (document_path(255)),
+    INDEX idx_composite (value(255), document_path(255), col_id)
+
 );
 
         """
@@ -151,26 +155,7 @@ class DocumentTokenRepository:
         return self.cursor.rowcount
 
 
-    def select_all_tokens(self) -> List[DocumentToken]:
-        query = "SELECT * FROM document_tokens"
-        self.cursor.execute(query)
-        rows = self.cursor.fetchall()
 
-        columns = [desc[0] for desc in self.cursor.description]
-        results = []
-
-        for row in rows:
-            row_dict = dict(zip(columns, row))
-
-            # JSON 필드 복원
-            row_dict['index_list'] = json.loads(row_dict['index_list']) if isinstance(row_dict['index_list'], str) else row_dict['index_list']
-
-            # Pydantic 모델로 변환
-            token = DocumentToken(**row_dict)
-            results.append(token)
-
-        return results
-    
     def get_tokens_by_document_path(self, document_path: str) -> List[DocumentToken]:
         """
         특정 document_path를 가진 모든 DocumentToken을 조회하여 반환합니다.
@@ -238,6 +223,38 @@ class DocumentTokenRepository:
                 token = DocumentToken(**row_dict)
                 results.append(token)
             logger.info(f"[조회된 데이터 개수] {len(results)}")
+
+            return results
+
+        except Exception as e:
+            logger.error(f"[데이터 조회 오류] {e}")
+            raise
+
+    def get_all_tokens(self) -> List[DocumentToken]:
+        """
+        document_tokens 테이블의 모든 토큰을 조회하여 반환합니다.
+
+        Returns:
+            List[DocumentToken]: 조회된 DocumentToken 객체 리스트.
+        """
+        try:
+            query = "SELECT * FROM document_tokens"
+            self.cursor.execute(query)
+            rows = self.cursor.fetchall()
+
+            # 컬럼 이름 가져오기
+            columns = [desc[0] for desc in self.cursor.description]
+            results = []
+
+            for row in rows:
+                row_dict = dict(zip(columns, row))
+
+                # JSON 필드 복원
+                row_dict['index_list'] = json.loads(row_dict['index_list']) if isinstance(row_dict['index_list'], str) else list(row_dict['index_list'])
+
+                # Pydantic 모델로 변환
+                token = DocumentToken(**row_dict)
+                results.append(token)
 
             return results
 

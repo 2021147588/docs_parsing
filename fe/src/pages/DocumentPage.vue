@@ -48,9 +48,9 @@
             <div class="row justify-end q-mb-md">
               <q-btn
                 color="primary"
-                :label="currentFileIndex >= totalFiles - 1 ? '저장' : '다음 문서'"
+                label="저장"
                 :disable="false"
-                @click="currentFileIndex >= totalFiles - 1 ? handleSave() : processNextFile()"
+                @click="handleSave()"
               />
             </div>
           </q-card-section>
@@ -276,8 +276,13 @@ export default defineComponent({
     const getTextColorClass = (wordType, dictionary) => {
       if (dictionary === 'stopwords') {
         return `text-${selectedStopwordsColor.value}`
+      } else if (dictionary === 'meaning') {
+        return 'text-blue'
+      } else if (dictionary === 'both') {
+        return 'text-red'
+      } else if(dictionary === 'other') {
+        return 'text-black'
       }
-      return `text-${selectedMeaningColor.value}`
     }
 
     const fetchDocument = async (filePath) => {
@@ -335,21 +340,19 @@ export default defineComponent({
           })
         } else {
           console.error('문서 데이터가 없습니다:', response.data)
-          $q.notify({
-            color: 'negative',
+          ElMessage({
+            type: 'error',
             message: '문서 데이터가 없습니다.',
-            icon: 'error',
-            position: 'top',
+            duration: 3000
           })
         }
       } catch (error) {
         console.error('문서 가져오기 실패:', error)
         console.error('에러 응답:', error.response?.data)
-        $q.notify({
-          color: 'negative',
+        ElMessage({
+          type: 'error',
           message: '문서를 불러오는 중 오류가 발생했습니다.',
-          icon: 'error',
-          position: 'top',
+          duration: 3000
         })
       }
     }
@@ -399,37 +402,37 @@ export default defineComponent({
       }
     }
 
-    const processNextFile = async () => {
-      if (currentFileIndex.value >= filePaths.value.length - 1) {
-        return
-      }
+    // const processNextFile = async () => {
+    //   if (currentFileIndex.value >= filePaths.value.length - 1) {
+    //     return
+    //   }
 
-      // 현재 문서의 단어들을 사전에 저장
-      if (documents.value.length > 0) {
-        const { meaningDictionaryCount, stopwordsCount } = await saveWordsToDictionaries(documents.value)
-        $q.notify({
-          color: 'positive',
-          message: `의미사전에 ${meaningDictionaryCount}개, 불용어사전에 ${stopwordsCount}개의 단어가 추가되었습니다.`,
-          icon: 'check',
-          position: 'top',
-          timeout: 3000
-        })
-      }
+    //   // 현재 문서의 단어들을 사전에 저장
+    //   if (documents.value.length > 0) {
+    //     const { meaningDictionaryCount, stopwordsCount } = await saveWordsToDictionaries(documents.value)
+    //     $q.notify({
+    //       color: 'positive',
+    //       message: `의미사전에 ${meaningDictionaryCount}개, 불용어사전에 ${stopwordsCount}개의 단어가 추가되었습니다.`,
+    //       icon: 'check',
+    //       position: 'top',
+    //       timeout: 3000
+    //     })
+    //   }
 
-      currentFileIndex.value++
-      const nextFilePath = filePaths.value[currentFileIndex.value]
-      currentFilePath.value = nextFilePath
+    //   currentFileIndex.value++
+    //   const nextFilePath = filePaths.value[currentFileIndex.value]
+    //   currentFilePath.value = nextFilePath
       
-      // URL 업데이트
-      const encodedPath = encodeURIComponent(nextFilePath)
-      window.history.replaceState(
-        {}, 
-        '', 
-        `/document?file_path=${encodedPath}`
-      )
+    //   // URL 업데이트
+    //   const encodedPath = encodeURIComponent(nextFilePath)
+    //   window.history.replaceState(
+    //     {}, 
+    //     '', 
+    //     `/document?file_path=${encodedPath}`
+    //   )
       
-      await fetchDocument(nextFilePath)
-    }
+    //   await fetchDocument(nextFilePath)
+    // }
 
     const fetchDictionaryInfo = async (word) => {
       try {
@@ -620,29 +623,39 @@ export default defineComponent({
       }
     }
 
-    const saveDocument = async () => {
+    const handleSave = async () => {
       try {
         // 현재 문서의 단어들을 사전에 저장
         if (documents.value.length > 0) {
           const { meaningDictionaryCount, stopwordsCount } = await saveWordsToDictionaries(documents.value)
-          $q.notify({
-            color: 'positive',
+          ElMessage({
+            type: 'success',
             message: `의미사전에 ${meaningDictionaryCount}개, 불용어사전에 ${stopwordsCount}개의 단어가 추가되었습니다.`,
-            icon: 'check',
-            position: 'top',
-            timeout: 3000
+            duration: 3000
           })
         }
         
-        // 저장 후 메인 페이지로 이동
-        window.location.href = '/'
+        // 통계 데이터 가져오기
+        const statisticsResponse = await api.post('/token/document/statistics', {
+          file_path: currentFilePath.value
+        })
+
+        if (statisticsResponse.data && statisticsResponse.data.success) {
+          // localStorage에 통계 데이터 저장
+          localStorage.setItem('documentStatistics', JSON.stringify(statisticsResponse.data.statistics))
+          localStorage.setItem('documentPath', currentFilePath.value)
+          
+          // 통계 페이지로 이동
+          await router.push('/document/statistics')
+        } else {
+          throw new Error('통계 데이터를 가져오는데 실패했습니다.')
+        }
       } catch (error) {
         console.error('문서 저장 중 오류:', error)
-        $q.notify({
-          color: 'negative',
+        ElMessage({
+          type: 'error',
           message: '문서 저장 중 오류가 발생했습니다.',
-          icon: 'error',
-          position: 'top',
+          duration: 3000
         })
       }
     }
@@ -754,6 +767,26 @@ export default defineComponent({
         if (!word) return
         console.log('handleDictionaryAction', word, wordInfo.value)
         let response
+
+        // 삭제 작업 전에 해당 사전에 단어가 존재하는지 확인
+        if (action === 'remove') {
+          if (selectedDictionary.value === 'meaning' && !dictionaryInfo.value) {
+            ElMessage({
+              type: 'error',
+              message: '의미사전에 존재하지 않는 단어입니다.',
+              duration: 3000
+            })
+            return
+          } else if (selectedDictionary.value === 'stopwords' && !stopwordsInfo.value) {
+            ElMessage({
+              type: 'error',
+              message: '불용어사전에 존재하지 않는 단어입니다.',
+              duration: 3000
+            })
+            return
+          }
+        }
+
         if (selectedDictionary.value === 'meaning') {
           if (action === 'add') {
             response = await api.post('/token/dictionary/add', {
@@ -791,38 +824,39 @@ export default defineComponent({
               if (doc.tokens) {
                 for (const token of doc.tokens) {
                   if (token.word === word) {
-                    token.dictionary = selectedDictionary.value
-                    console.log('token.dictionary', token)
+                    if (action === 'add') {
+                      token.dictionary = selectedDictionary.value
+                    } else {
+                      token.dictionary = null
+                    }
+                    console.log('Updated token:', token)
                   }
                 }
               }
             }
           }
 
-          $q.notify({
-            color: 'positive',
+          ElMessage({
+            type: 'success',
             message: `${selectedDictionary.value === 'meaning' ? '의미사전' : '불용어사전'}에서 단어가 ${action === 'add' ? '추가' : '삭제'}되었습니다.`,
-            icon: 'check',
-            position: 'top',
+            duration: 3000
           })
 
           // Refresh word info
           await handleTokenClick({ word }, currentFileIndex.value)
         } else {
-          $q.notify({
-            color: 'negative',
+          ElMessage({
+            type: 'error',
             message: response.data.message || `사전 ${action === 'add' ? '추가' : '삭제'}에 실패했습니다.`,
-            icon: 'error',
-            position: 'top',
+            duration: 3000
           })
         }
       } catch (error) {
         console.error('사전 작업 중 오류:', error)
-        $q.notify({
-          color: 'negative',
+        ElMessage({
+          type: 'error',
           message: '사전 작업 중 오류가 발생했습니다.',
-          icon: 'error',
-          position: 'top',
+          duration: 3000
         })
       }
     }
@@ -971,22 +1005,6 @@ export default defineComponent({
       }
     })
 
-    const handleSave = async () => {
-      try {
-        // 저장 로직 실행
-        await saveDocument()
-        
-        // 성공 메시지 표시
-        ElMessage.success('문서가 성공적으로 저장되었습니다.')
-        
-        // 토큰 페이지로 이동
-        router.push('/document/tokens')
-      } catch (error) {
-        console.error('문서 저장 중 오류:', error)
-        ElMessage.error('문서 저장에 실패했습니다.')
-      }
-    }
-
     const fileNameRef = ref(null)
 
     // 파일 이름 크기 조정 함수
@@ -1031,7 +1049,7 @@ export default defineComponent({
       wordInfo,
       dictionaryInfo,
       stopwordsInfo,
-      processNextFile,
+      // processNextFile,
       getTextColorClass,
       showWordInfo,
       closeWordInfo,
@@ -1039,7 +1057,6 @@ export default defineComponent({
       removeFromDictionary,
       addToStopwords,
       removeFromStopwords,
-      saveDocument,
       handleSave,
       selectedDictionary,
       handleDictionaryAction,
@@ -1457,4 +1474,3 @@ export default defineComponent({
   color: #333;
 }
 </style>
-

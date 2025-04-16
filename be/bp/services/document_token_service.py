@@ -11,12 +11,14 @@ from bp.views.document_token import DocumentToken
 from bp.repositories.document_token_repository import DocumentTokenRepository
 from bp.services.document_token.input_data import input_data
 from bp.utils.loggers import setup_logger
+from bp.services.dictionary_service import DictionaryService
 
 logger = setup_logger()
 
 class DocumentParsingService:
     def __init__(self):
         self.document_token_repository = DocumentTokenRepository()
+        self.dictionary_service = DictionaryService()
 
     
     def create_document_token(self, lang, metadata) -> Tuple[int, int]:
@@ -112,28 +114,140 @@ class DocumentParsingService:
             # DocumentToken 중 col_id가 현재 segment의 col_id와 일치하는 token 추가
             for document_token in document_tokens:
                 if document_token.col_id == col_id:
+                    # 의미사전과 불용어사전 조회
+                    meaning_result = self.dictionary_service.search_meaning_dictionary(document_token.value)
+                    stopwords_result = self.dictionary_service.search_stopwords(document_token.value)
                     
+                    # 사전 조회 결과에 따라 dictionary 태그 결정
+                    dictionary = "both" if meaning_result and stopwords_result else "meaning" if meaning_result else "stopwords" if stopwords_result else "other"
+                    
+                    # 기타 토큰은 불용어사전으로 취급
+                    if document_token.word_type == '기타':
+                        dictionary = 'stopwords'
+
                     segment_dict["tokens"].append({
                         "word": document_token.value,
                         "word_type": document_token.word_type, 
-                        "dictionary": "stopwords" if document_token.word_type == '기타' else "meaning"
+                        "dictionary": dictionary
                     })
 
             result.append(segment_dict)
 
         return result
 
-    def get_tokens_by_word_and_document_path(self, word: str, seg_id: int,  file_path: str) -> List[DocumentToken]:
-        """
-        특정 file_path에 해당하는 DocumentToken을 반환합니다.
-        """
-        # DocumentToken 데이터베이스에서 조회
-        document_tokens = self.document_token_repository.get_tokens_by_word_and_document_path(word,seg_id, file_path)
-        document_tokens_dict = [token.model_dump() for token in document_tokens]
+    def get_tokens_by_word_and_document_path(self, word, seg_id, file_path):
+        """특정 단어와 문서 경로에 대한 토큰 정보를 조회합니다."""
+        try:
+            # 문서 경로로부터 카테고리 정보 추출
+            path_parts = file_path.split('/')
+            cate1 = path_parts[-2] if len(path_parts) >= 2 else None
+            cate2 = None
+            
+            # 해당 단어의 토큰 정보 조회
+            tokens = self.document_token_repository.get_tokens_by_word_and_document_path(word, seg_id, file_path)
+            
+            if not tokens:
+                logger.info(f"'{word}' 단어에 대한 토큰 정보가 없습니다.")
+                return {
+                    'value': word,
+                    'word_type': None,
+                    'total_cnt': 0,
+                    'domain_cnt': 0,
+                    'doc_cnt': 0,
+                    'col_cnt': 0,
+                    'cate1': cate1,
+                    'cate2': cate2,
+                    'document_path': file_path,
+                    'document_name': os.path.basename(file_path),
+                    'col_id': seg_id
+                }
+            
+            # 첫 번째 토큰 정보 사용 (동일한 단어는 동일한 통계 정보를 가짐)
+            token = tokens[0]
+            
+            return {
+                'value': token.value,
+                'word_type': token.word_type,
+                'total_cnt': token.total_cnt,
+                'domain_cnt': token.domain_cnt,
+                'doc_cnt': token.doc_cnt,
+                'col_cnt': token.col_cnt,
+                'cate1': token.cate1 or cate1,
+                'cate2': token.cate2 or cate2,
+                'document_path': token.document_path,
+                'document_name': token.document_name,
+                'col_id': token.col_id
+            }
+            
+        except Exception as e:
+            logger.error(f"단어 정보 조회 중 오류 발생: {str(e)}")
+            raise
 
-        return document_tokens_dict[0]
+    def get_document_statistics(self, file_path: str) -> Dict:
+        try:
+            # 1. DocumentToken 데이터베이스에서 조회
+            document_tokens = self.document_token_repository.get_tokens_by_document_path(file_path)
+            if not document_tokens:
+                return {
+                    "success": True,
+                    "statistics": {
+                        "total_words": 0,
+                        "meaning_dictionary_words": 0,
+                        "stopwords": 0,
+                        "word_types": {}
+                    }
+                }
 
-    
+            # 2. 통계 계산
+            statistics = {
+                "total_words": 0,
+                "meaning_dictionary_words": 0,
+                "stopwords": 0,
+                "word_types": {}
+            }
+
+            for token in document_tokens:
+                try:
+                    # 총 단어 수 증가
+                    statistics["total_words"] += 1
+
+                    # 의미사전과 불용어사전 조회
+                    meaning_result = self.dictionary_service.search_meaning_dictionary(token.value)
+                    stopwords_result = self.dictionary_service.search_stopwords(token.value)
+
+                    # 사전 조회 결과에 따라 통계 업데이트
+                    if meaning_result is not None:
+                        statistics["meaning_dictionary_words"] += 1
+                    if stopwords_result is not None:
+                        statistics["stopwords"] += 1
+
+                    # 단어 유형 통계 업데이트
+                    word_type = token.word_type
+                    if word_type:
+                        if word_type not in statistics["word_types"]:
+                            statistics["word_types"][word_type] = 0
+                        statistics["word_types"][word_type] += 1
+
+                except Exception as e:
+                    logger.error(f"토큰 처리 중 오류 발생 (토큰: {token.value}): {str(e)}")
+                    continue
+
+            return {
+                "success": True,
+                "statistics": statistics
+            }
+
+        except Exception as e:
+            error_msg = f"문서 통계 계산 중 오류 발생: {str(e)}"
+            logger.error(error_msg)
+            logger.error(f"오류 상세 정보: {type(e).__name__}, {e.__traceback__.tb_lineno}번 줄")
+            return {
+                "success": False,
+                "message": error_msg,
+                "error_type": type(e).__name__,
+                "error_line": e.__traceback__.tb_lineno
+            }
+
 if __name__ =="__main__":
     dir = 'D:/2025/parsing/docs_parsing/data/report.pdf'
     process_service = DocumentParsingService()

@@ -11,7 +11,8 @@ pos_tag_dict = {
     "NNG": "noun",        # 일반 명사
     "NNP": "proper_noun",  # 고유 명사
     "VV": "verb",          # 동사
-    "SL": "alphabet"
+    "SL": "alphabet",
+    "VA": "adjective"
 }
 personal_information_tag_dict = {
     "W_EMAIL": "이메일 주소",       # 이메일 주소
@@ -32,7 +33,7 @@ class WordTokenizer:
         self.stopword = self._make_stopword_set()
         self.token_positions = {}  # {token: 마지막 등장 인덱스} 저장
 
-    def tokenization(self) -> List[Dict[str, SegmentTokens]]:
+    def tokenization(self) -> List[SegmentTokens]:
         
         if self.lang == 'kor': 
             tokens = self.tokenization_kor()

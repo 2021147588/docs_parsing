@@ -195,11 +195,6 @@ def get_word_info_by_word():
             'message': f'단어 정보 처리 중 오류가 발생했습니다: {str(e)}'
         }), 500
 
-@bp.route('/document/statistics/<int:id>', methods=["GET"])
-def get_document_statistics(id: int):
-    return jsonify({
-        'success': True
-    }), 200
 
 @bp.route('/document/batch_update', methods=["POST"])
 def batch_update_dictionaries():
@@ -522,5 +517,89 @@ def get_document_tokens():
         return jsonify({
             'success': False,
             'message': f'문서 토큰을 조회하는 중 오류가 발생했습니다: {str(e)}'
+        }), 500
+
+@bp.route('/document/statistics', methods=['POST'])
+def get_document_statistics():
+    """
+    문서의 통계 정보를 계산하고 반환합니다.
+    """
+    try:
+        data = request.get_json()
+        file_path = data.get('file_path')
+        
+        if not file_path:
+            return jsonify({
+                'success': False,
+                'message': '파일 경로가 제공되지 않았습니다.'
+            }), 400
+
+        # DocumentParsingService 인스턴스 생성
+        document_parsing_service = DocumentParsingService()
+        
+        # 전체 문서의 토큰 정보 가져오기
+        document_tokens = document_parsing_service.document_token_repository.get_all_tokens()
+        
+        # 통계 정보 계산
+        statistics = {
+            'total_tokens': len(document_tokens),
+            'segments': {},
+            'categories': {},
+            'domains': {}
+        }
+        
+        # 분할별 통계 계산
+        for token in document_tokens:
+            # 분할 통계
+            if token.col_id not in statistics['segments']:
+                statistics['segments'][token.col_id] = {
+                    'token_count': 0,
+                    'unique_tokens': set()
+                }
+            statistics['segments'][token.col_id]['token_count'] += token.col_cnt
+            statistics['segments'][token.col_id]['unique_tokens'].add(token.value)
+            
+            # 카테고리 통계
+            if token.cate1:
+                if token.cate1 not in statistics['categories']:
+                    statistics['categories'][token.cate1] = {
+                        'token_count': 0,
+                        'unique_tokens': set()
+                    }
+                statistics['categories'][token.cate1]['token_count'] += (token.cate1_cnt or 0)
+                statistics['categories'][token.cate1]['unique_tokens'].add(token.value)
+            
+            # 도메인 통계
+            if token.document_name:
+                if token.document_name not in statistics['domains']:
+                    statistics['domains'][token.document_name] = {
+                        'token_count': 0,
+                        'unique_tokens': set()
+                    }
+                statistics['domains'][token.document_name]['token_count'] += (token.domain_cnt or 0)
+                statistics['domains'][token.document_name]['unique_tokens'].add(token.value)
+        
+        # unique_tokens를 리스트로 변환
+        for segment in statistics['segments'].values():
+            segment['unique_tokens'] = list(segment['unique_tokens'])
+        for category in statistics['categories'].values():
+            category['unique_tokens'] = list(category['unique_tokens'])
+        for domain in statistics['domains'].values():
+            domain['unique_tokens'] = list(domain['unique_tokens'])
+        
+        return jsonify({
+            'success': True,
+            'statistics': statistics
+        }), 200
+        
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        logger.error(f"문서 통계 계산 중 오류 발생:\n{error_details}")
+        
+        return jsonify({
+            'success': False,
+            'message': f'문서 통계 계산 중 오류가 발생했습니다.',
+            'error_details': error_details
         }), 500
 
