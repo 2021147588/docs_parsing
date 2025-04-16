@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 import pandas as pd
 import io
+import os
 
 from bp.services.document_token_service import DocumentParsingService
 from bp.services.dictionary_service import DictionaryService
@@ -89,44 +90,37 @@ def upload_files_and_make_token_tables():
             'message': f'엑셀 파일 처리 중 오류가 발생했습니다: {str(e)}',
         }), 400
 
-@bp.route('document/word/', methods=["POST"])
-def get_word_info_by_word():
-    data = request.get_json()
-    file_path = data.get('file_path')
-    word = data.get('word')
-    seg_id = data.get('seg_id')
-    logger.info(f"data: {data}")
-
-    document_parsing_service = DocumentParsingService()
-    dictionary_service = DictionaryService()
-    document = document_parsing_service.get_tokens_by_word_and_document_path(word, seg_id, file_path)
-    meaning_dictionary_result = dictionary_service.search_meaning_dictionary(word)
-    stopwords_result = dictionary_service.search_stopwords(word)
-    
-    return jsonify({
-        'success': True,
-        'document': document,
-        'meaning_dictionary': meaning_dictionary_result,
-        'stopwords': stopwords_result
-    }), 200
-
-
 @bp.route('/document', methods=["POST"])
 def get_document_by_id():
+    logger.info("=== /document endpoint called ===")
     data = request.get_json()
-    file_path = data.get('file_path')
+    logger.info(f"Request data: {data}")
     
-    if not file_path:
+    input_path = data.get('file_path')
+    logger.info(f"Received path: {input_path}")
+    
+    if not input_path:
+        logger.error("No file path provided")
         return jsonify({
             'success': False,
             'message': '파일 경로가 제공되지 않았습니다.'
         }), 400
     
-    logger.info(f"요청된 파일 경로: {file_path}")
+    # 경로가 절대 경로인지 상대 경로인지 확인
+    if os.path.isabs(input_path):
+        # 절대 경로인 경우 그대로 사용
+        file_path = input_path
+        logger.info(f"Using absolute path: {file_path}")
+    else:
+        # 상대 경로인 경우 절대 경로로 변환
+        file_path = f"C:/Users/dblab/parsing/data/{input_path}"
+        logger.info(f"Converted relative path to absolute: {file_path}")
     
     try:
         document_parsing_service = DocumentParsingService()
+        logger.info("Calling get_segmented_tokens...")
         document = document_parsing_service.get_segmented_tokens(file_path)
+        logger.info(f"Successfully retrieved document with {len(document)} segments")
         
         return jsonify({
             'success': True,
@@ -145,6 +139,61 @@ def get_document_by_id():
             'message': f'문서 처리 중 오류가 발생했습니다: {str(e)}'
         }), 500
 
+@bp.route('/document/word', methods=["POST", "OPTIONS"])
+@bp.route('/document/word/', methods=["POST", "OPTIONS"])
+def get_word_info_by_word():
+    logger.info("=== /document/word endpoint called ===")
+    if request.method == "OPTIONS":
+        logger.info("Handling OPTIONS request")
+        return "", 200
+        
+    data = request.get_json()
+    logger.info(f"Request data: {data}")
+    
+    input_path = data.get('file_path')
+    word = data.get('word')
+    seg_id = data.get('seg_id')
+    
+    logger.info(f"Received parameters - path: {input_path}, word: {word}, seg_id: {seg_id}")
+    
+    # 경로가 절대 경로인지 상대 경로인지 확인
+    if os.path.isabs(input_path):
+        # 절대 경로인 경우 그대로 사용
+        file_path = input_path
+        logger.info(f"Using absolute path: {file_path}")
+    else:
+        # 상대 경로인 경우 절대 경로로 변환
+        file_path = f"C:/Users/dblab/parsing/data/{input_path}"
+        logger.info(f"Converted relative path to absolute: {file_path}")
+    
+    try:
+        document_parsing_service = DocumentParsingService()
+        dictionary_service = DictionaryService()
+        
+        logger.info("Calling get_tokens_by_word_and_document_path...")
+        document = document_parsing_service.get_tokens_by_word_and_document_path(word, seg_id, file_path)
+        logger.info(f"Retrieved document tokens: {document}")
+        
+        logger.info("Calling search_meaning_dictionary...")
+        meaning_dictionary_result = dictionary_service.search_meaning_dictionary(word)
+        logger.info(f"Meaning dictionary result: {meaning_dictionary_result}")
+        
+        logger.info("Calling search_stopwords...")
+        stopwords_result = dictionary_service.search_stopwords(word)
+        logger.info(f"Stopwords result: {stopwords_result}")
+        
+        return jsonify({
+            'success': True,
+            'document': document,
+            'meaning_dictionary': meaning_dictionary_result,
+            'stopwords': stopwords_result
+        }), 200
+    except Exception as e:
+        logger.error(f"Error processing word info: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'단어 정보 처리 중 오류가 발생했습니다: {str(e)}'
+        }), 500
 
 @bp.route('/document/statistics/<int:id>', methods=["GET"])
 def get_document_statistics(id: int):

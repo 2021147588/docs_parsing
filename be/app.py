@@ -18,9 +18,14 @@ blueprints = [
 ]
 
 app = Flask(__name__)
-CORS(app)
-
-
+# CORS 설정 추가
+CORS(app, resources={
+    r"/token/*": {
+        "origins": "*",
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    }
+})
 
 for bp in blueprints:
     app.register_blueprint(bp)

@@ -1,252 +1,220 @@
 <template>
   <div class="q-pa-md">
-    <q-card class="document-card">
-      <q-card-section class="text-center">
-        <div class="text-h5 q-mb-md">문서 내용</div>
-        <div class="text-subtitle1 text-grey q-mb-lg">
-          {{ currentFileIndex + 1 }}/{{ totalFiles }} 번째 문서
-        </div>
-      </q-card-section>
+    <div class="row q-col-gutter-md">
+      <!-- 디렉토리 트리 섹션 -->
+      <div class="col-2">
+        <q-card class="directory-tree-card">
+          <q-card-section>
+            <div class="text-h6 q-mb-md">문서 디렉토리</div>
+            <!-- 상위 경로 표시 -->
+            <div class="path-breadcrumb q-mb-md">
+              <template v-for="(part, index) in basePathParts" :key="index">
+                <span class="path-part">{{ part }}</span>
+                <q-icon v-if="index < basePathParts.length - 1" name="chevron_right" size="xs" class="q-mx-xs" />
+              </template>
+            </div>
+            <!-- 하위 디렉토리 트리 -->
+            <q-tree
+              v-if="directoryTree.length > 0"
+              :nodes="directoryTree"
+              node-key="id"
+              :selected.sync="selectedNode"
+              @update:selected="handleNodeSelect"
+              default-expand-all
+              label-key="label"
+              class="directory-tree"
+            >
+              <template v-slot:default-header="prop">
+                <div class="row items-center">
+                  <q-icon :name="prop.node.children ? 'folder' : 'description'" class="q-mr-sm" />
+                  {{ prop.node.label }}
+                </div>
+              </template>
+            </q-tree>
+          </q-card-section>
+        </q-card>
+      </div>
 
-      <!-- 색상 선택 버튼 추가 -->
-      <q-card-section>
-        <div class="text-subtitle1 q-mb-sm">의미사전 색상</div>
-        <div class="row q-gutter-sm q-mb-md">
-          <q-btn 
-            v-for="color in meaningColors" 
-            :key="color.name"
-            :color="color.value"
-            :class="{ 'selected-color': selectedMeaningColor === color.value }"
-            class="color-btn"
-            @click="selectedMeaningColor = color.value"
-          >
-            {{ color.name }}
-          </q-btn>
-        </div>
-        
-        <div class="text-subtitle1 q-mb-sm">불용어사전 색상</div>
-        <div class="row q-gutter-sm">
-          <q-btn 
-            v-for="color in stopwordsColors" 
-            :key="color.name"
-            :class="[
-              'color-btn',
-              { 'selected-color': selectedStopwordsColor === color.value },
-              `bg-${color.value}`
-            ]"
-            flat
-            :label="color.name"
-            @click="selectedStopwordsColor = color.value"
-          />
-        </div>
-      </q-card-section>
+      <!-- 문서 내용 섹션 -->
+      <div class="col-7">
+        <q-card class="document-card">
+          <q-card-section class="text-center">
+            <div class="text-h5 q-mb-sm file-name-container">
+              <div class="file-name" ref="fileNameRef">{{ currentFilePath.split('/').pop() }}</div>
+            </div>
+            <div class="text-subtitle1 text-grey q-mb-sm">
+              {{ currentFileIndex + 1 }}/{{ totalFiles }} 번째 문서
+            </div>
+            <div class="row justify-end q-mb-md">
+              <q-btn
+                color="primary"
+                :label="currentFileIndex >= totalFiles - 1 ? '저장' : '다음 문서'"
+                :disable="false"
+                @click="currentFileIndex >= totalFiles - 1 ? handleSave() : processNextFile()"
+              />
+            </div>
+          </q-card-section>
+<!-- 
+          색상 선택 버튼 추가
+          <q-card-section>
+            <div class="text-subtitle1 q-mb-sm">의미사전 색상</div>
+            <div class="row q-gutter-sm q-mb-md">
+              <q-btn 
+                v-for="color in meaningColors" 
+                :key="color.name"
+                :color="color.value"
+                :class="{ 'selected-color': selectedMeaningColor === color.value }"
+                class="color-btn"
+                @click="selectedMeaningColor = color.value"
+              >
+                {{ color.name }}
+              </q-btn>
+            </div>
+            
+            <div class="text-subtitle1 q-mb-sm">불용어사전 색상</div>
+            <div class="row q-gutter-sm">
+              <q-btn 
+                v-for="color in stopwordsColors" 
+                :key="color.name"
+                :class="[
+                  'color-btn',
+                  { 'selected-color': selectedStopwordsColor === color.value },
+                  `bg-${color.value}`
+                ]"
+                flat
+                :label="color.name"
+                @click="selectedStopwordsColor = color.value"
+              />
+            </div>
+          </q-card-section> -->
 
-      <q-card-section>
-        <div v-if="documents.length > 0">
-          <div
-            v-for="(doc, index) in documents"
-            :key="index"
-            class="q-mb-lg"
-          >
-            <div class="text-subtitle1 q-mb-sm">분할 {{ index + 1 }}</div>
-            <div class="segment-content">
-              <div class="segment-text">
-                <template
-                  v-for="(word, wordIndex) in highlightTokensInSegment(doc.segment, doc.tokens)"
-                  :key="wordIndex"
-                >
-                  <template v-if="word.highlight">
-                    <span
-                      class="token"
-                      :class="getTextColorClass(word.word_type, word.dictionary)"
-                      @click="handleTokenClick(word, index)"
+          <q-card-section>
+            <div v-if="documents.length > 0">
+              <div
+                v-for="(doc, index) in documents"
+                :key="index"
+                class="q-mb-lg"
+              >
+                <div class="text-subtitle1 q-mb-sm">분할 {{ index + 1 }}</div>
+                <div class="segment-content">
+                  <div class="segment-text">
+                    <template
+                      v-for="(word, wordIndex) in highlightTokensInSegment(doc.segment, doc.tokens)"
+                      :key="wordIndex"
                     >
-                      {{ word.word }}
-                    </span>
-                  </template>
-                  <template v-else>
-                    <span :class="getTextColorClass(word.word_type, word.dictionary)">
-                      {{ word.word }}
-                    </span>
-                  </template>
-                </template>
+                      <template v-if="word.highlight">
+                        <span
+                          class="token"
+                          :class="getTextColorClass(word.word_type, word.dictionary)"
+                          @click="handleTokenClick(word, index)"
+                        >
+                          {{ word.word }}
+                        </span>
+                      </template>
+                      <template v-else>
+                        <span :class="getTextColorClass(word.word_type, word.dictionary)">
+                          {{ word.word }}
+                        </span>
+                      </template>
+                    </template>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-        <div v-else class="text-center text-grey">
-          문서를 불러오는 중...
-        </div>
-      </q-card-section>
+            <div v-else class="text-center text-grey">
+              문서를 불러오는 중...
+            </div>
+          </q-card-section>
 
-      <q-card-actions align="right" class="q-pa-md">
-        <q-btn
-          color="primary"
-          :label="currentFileIndex >= totalFiles - 1 ? '저장' : '다음 문서'"
-          :disable="false"
-          @click="currentFileIndex >= totalFiles - 1 ? handleSave() : processNextFile()"
-        />
-      </q-card-actions>
-    </q-card>
+          <q-card-actions align="right" class="q-pa-md">
+          </q-card-actions>
+        </q-card>
+      </div>
 
-    <!-- 단어 정보 팝업 -->
-    <q-dialog v-model="showDialog" persistent>
-      <q-card style="min-width: 350px">
-        <q-card-section>
-          <div class="text-h6">{{ wordInfo?.word || wordInfo?.value }}</div>
-          <div class="dictionary-divider"></div>
-        </q-card-section>
+      <!-- 단어 정보 사이드 패널 -->
+      <div class="col-3" v-if="wordInfo">
+        <q-card class="word-info-card">
+          <q-card-section>
+            <div class="text-h6">{{ wordInfo?.word || wordInfo?.value }}</div>
+          </q-card-section>
 
-        <q-card-section class="q-pt-none">
-          <div v-if="wordInfo">
-            <p><strong>유형:</strong> {{ wordInfo.word_type || '정보 없음' }}</p>
-            <p><strong>출현 횟수:</strong> {{ wordInfo.total_cnt || '정보 없음' }}</p>
-            <p><strong>도메인 수:</strong> {{ wordInfo.domain_cnt || '정보 없음' }}</p>
-            <p><strong>문서 수:</strong> {{ wordInfo.doc_cnt || '정보 없음' }}</p>
-          </div>
-          
-          <div class="q-mt-md">
-            <div class="text-subtitle1 dictionary-title">의미사전 정보</div>
-            <div class="dictionary-divider"></div>
-            <div v-if="dictionaryInfo" class="dictionary-content">
-              <p><strong>추가 횟수:</strong> {{ dictionaryInfo.total_add_count || '정보 없음' }}</p>
-              <p><strong>삭제 횟수:</strong> {{ dictionaryInfo.total_delete_count || '정보 없음' }}</p>
+          <q-card-section class="q-pt-none">
+            <div v-if="wordInfo">
+              <p><strong>유형:</strong> {{ wordInfo.word_type || '정보 없음' }}</p>
+              <p><strong>출현 횟수:</strong> {{ wordInfo.total_cnt || '정보 없음' }}</p>
+              <p><strong>도메인 수:</strong> {{ wordInfo.domain_cnt || '정보 없음' }}</p>
+              <p><strong>문서 수:</strong> {{ wordInfo.doc_cnt || '정보 없음' }}</p>
             </div>
-            <div v-else class="dictionary-empty">
-              <p>의미사전에 등록되지 않음</p>
+            
+            <div class="q-mt-md">
+              <div class="text-subtitle1 dictionary-title">의미사전 정보</div>
+              <div class="dictionary-divider"></div>
+              <div v-if="dictionaryInfo" class="dictionary-content">
+                <p><strong>추가 횟수:</strong> {{ dictionaryInfo.total_add_count || '정보 없음' }}</p>
+                <p><strong>삭제 횟수:</strong> {{ dictionaryInfo.total_delete_count || '정보 없음' }}</p>
+              </div>
+              <div v-else class="dictionary-empty">
+                <p>의미사전에 등록되지 않음</p>
+              </div>
             </div>
-          </div>
-          
-          <div class="q-mt-md">
-            <div class="text-subtitle1 dictionary-title">불용어사전 정보</div>
-            <div class="dictionary-divider"></div>
-            <div v-if="stopwordsInfo" class="dictionary-content">
-              <p><strong>추가 횟수:</strong> {{ stopwordsInfo.total_add_count || '정보 없음' }}</p>
-              <p><strong>삭제 횟수:</strong> {{ stopwordsInfo.total_delete_count || '정보 없음' }}</p>
+            
+            <div class="q-mt-md">
+              <div class="text-subtitle1 dictionary-title">불용어사전 정보</div>
+              <div class="dictionary-divider"></div>
+              <div v-if="stopwordsInfo" class="dictionary-content">
+                <p><strong>추가 횟수:</strong> {{ stopwordsInfo.total_add_count || '정보 없음' }}</p>
+                <p><strong>삭제 횟수:</strong> {{ stopwordsInfo.total_delete_count || '정보 없음' }}</p>
+              </div>
+              <div v-else class="dictionary-empty">
+                <p>불용어사전에 등록되지 않음</p>
+              </div>
             </div>
-            <div v-else class="dictionary-empty">
-              <p>불용어사전에 등록되지 않음</p>
+            
+            <div class="q-mt-md">
+              <div class="text-subtitle1 dictionary-title">사전 선택</div>
+              <div class="dictionary-divider"></div>
+              <div class="dictionary-content">
+                <q-radio
+                  v-model="selectedDictionary"
+                  val="meaning"
+                  label="의미사전"
+                  class="q-mb-sm"
+                />
+                <q-radio
+                  v-model="selectedDictionary"
+                  val="stopwords"
+                  label="불용어사전"
+                  class="q-mb-sm"
+                />
+              </div>
             </div>
-          </div>
-          
-          <div class="q-mt-md">
-            <div class="text-subtitle1 dictionary-title">사전 선택</div>
-            <div class="dictionary-divider"></div>
-            <div class="dictionary-content">
-              <q-radio
-                v-model="selectedDictionary"
-                val="meaning"
-                label="의미사전"
-                class="q-mb-sm"
-              />
-              <q-radio
-                v-model="selectedDictionary"
-                val="stopwords"
-                label="불용어사전"
-                class="q-mb-sm"
-              />
+            
+            <div class="q-mt-md">
+              <div class="dictionary-actions">
+                <q-btn 
+                  color="primary" 
+                  :label="selectedDictionary === 'meaning' ? '의미사전에 추가' : '불용어사전에 추가'" 
+                  size="sm"
+                  @click="handleDictionaryAction('add')"
+                />
+                <q-btn 
+                  color="negative" 
+                  :label="selectedDictionary === 'meaning' ? '의미사전에서 삭제' : '불용어사전에서 삭제'" 
+                  size="sm"
+                  class="q-ml-sm"
+                  @click="handleDictionaryAction('remove')"
+                />
+              </div>
             </div>
-          </div>
-          
-          <div class="q-mt-md">
-            <div class="dictionary-actions">
-              <q-btn 
-                color="primary" 
-                :label="selectedDictionary === 'meaning' ? '의미사전에 추가' : '불용어사전에 추가'" 
-                size="sm"
-                @click="handleDictionaryAction('add')"
-              />
-              <q-btn 
-                color="negative" 
-                :label="selectedDictionary === 'meaning' ? '의미사전에서 삭제' : '불용어사전에서 삭제'" 
-                size="sm"
-                class="q-ml-sm"
-                @click="handleDictionaryAction('remove')"
-              />
-            </div>
-          </div>
-        </q-card-section>
-
-        <q-card-actions align="right">
-          <q-btn flat label="닫기" color="primary" v-close-popup />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <!-- Word Info Modal -->
-    <div v-if="showWordInfo" class="word-info-modal">
-      <div class="word-info-content">
-        <div class="word-info-header">
-          <h3>{{ wordInfo.word || wordInfo.value }}</h3>
-          <button @click="closeWordInfo" class="close-button">&times;</button>
-        </div>
-        <div class="word-info-body">
-          <div class="word-info-section">
-            <h4>단어 정보</h4>
-            <p><strong>단어:</strong> {{ wordInfo.word || wordInfo.value }}</p>
-            <p><strong>유형:</strong> {{ wordInfo.word_type }}</p>
-            <p><strong>출현 횟수:</strong> {{ wordInfo.total_cnt }}</p>
-            <p><strong>도메인 수:</strong> {{ wordInfo.domain_cnt }}</p>
-            <p><strong>문서 수:</strong> {{ wordInfo.doc_cnt }}</p>
-          </div>
-          
-          <div class="word-info-section">
-            <h4>의미사전 정보</h4>
-            <p v-if="dictionaryInfo">
-              <strong>추가 횟수:</strong> {{ dictionaryInfo.add_count || 0 }}
-              <strong>삭제 횟수:</strong> {{ dictionaryInfo.delete_count || 0 }}
-            </p>
-            <p v-else>의미사전에 등록되지 않음</p>
-            <div class="q-mt-sm">
-              <q-btn 
-                v-if="!dictionaryInfo"
-                color="positive" 
-                label="의미사전에 추가" 
-                size="sm"
-                @click="addToDictionary(wordInfo.word)"
-              />
-              <q-btn 
-                v-else
-                color="negative" 
-                label="의미사전에서 삭제" 
-                size="sm"
-                @click="removeFromDictionary(wordInfo.word)"
-              />
-            </div>
-          </div>
-          
-          <div class="word-info-section">
-            <h4>불용어사전 정보</h4>
-            <p v-if="stopwordsInfo">
-              <strong>추가 횟수:</strong> {{ stopwordsInfo.add_count || 0 }}
-              <strong>삭제 횟수:</strong> {{ stopwordsInfo.delete_count || 0 }}
-            </p>
-            <p v-else>불용어사전에 등록되지 않음</p>
-            <div class="q-mt-sm">
-              <q-btn 
-                v-if="!stopwordsInfo"
-                color="positive" 
-                label="불용어사전에 추가" 
-                size="sm"
-                @click="addToStopwords(wordInfo.word)"
-              />
-              <q-btn 
-                v-else
-                color="negative" 
-                label="불용어사전에서 삭제" 
-                size="sm"
-                @click="removeFromStopwords(wordInfo.word)"
-              />
-            </div>
-          </div>
-        </div>
+          </q-card-section>
+        </q-card>
       </div>
     </div>
   </div>
 </template>
 
 <script>
-import { defineComponent, ref, onMounted, watch } from 'vue'
+import { defineComponent, ref, onMounted, watch, nextTick } from 'vue'
 import { useQuasar } from 'quasar'
 import { api } from '../boot/axios'
 import { useRoute, useRouter } from 'vue-router'
@@ -301,6 +269,10 @@ export default defineComponent({
       { name: '연한 노랑', value: 'light-yellow' }
     ]
 
+    const directoryTree = ref([])
+    const selectedNode = ref(null)
+    const basePathParts = ref([])
+
     const getTextColorClass = (wordType, dictionary) => {
       if (dictionary === 'stopwords') {
         return `text-${selectedStopwordsColor.value}`
@@ -315,10 +287,13 @@ export default defineComponent({
       }
 
       try {
-        console.log('문서 요청 경로:', filePath)
+        console.log('Fetching document for path:', filePath)
         const response = await api.post('/token/document', {
           file_path: filePath
         })
+        
+        console.log('API 응답 데이터:', response.data)
+        console.log('문서 데이터:', response.data.document)
         
         if (response.data && response.data.document) {
           // 파일 경로에서 카테고리 정보 추출
@@ -327,19 +302,37 @@ export default defineComponent({
           const cate2 = null
           
           // 각 문서 세그먼트에 카테고리 정보 추가
-          const documentsWithCategories = response.data.document.map(doc => ({
-            ...doc,
-            cate1,
-            cate2,
-            tokens: doc.tokens.map(token => ({
-              ...token,
+          const documentsWithCategories = response.data.document.map(doc => {
+            console.log('세그먼트 데이터:', doc)
+            return {
+              ...doc,
               cate1,
-              cate2
-            }))
-          }))
+              cate2,
+              tokens: doc.tokens ? doc.tokens.map(token => ({
+                ...token,
+                cate1,
+                cate2,
+                highlight: true
+              })) : []
+            }
+          })
           
           documents.value = documentsWithCategories
-          console.log('문서 데이터:', documents.value)
+          console.log('처리된 문서 데이터:', documents.value)
+
+          // 문서 로드 후 토큰 클릭 이벤트 재설정
+          nextTick(() => {
+            const tokens = document.querySelectorAll('.token')
+            tokens.forEach(token => {
+              token.style.cursor = 'pointer'
+              token.addEventListener('click', (e) => {
+                const word = e.target.textContent
+                const segmentIndex = Array.from(e.target.parentElement.parentElement.parentElement.children)
+                  .indexOf(e.target.parentElement.parentElement)
+                handleTokenClick({ word }, segmentIndex)
+              })
+            })
+          })
         } else {
           console.error('문서 데이터가 없습니다:', response.data)
           $q.notify({
@@ -350,7 +343,8 @@ export default defineComponent({
           })
         }
       } catch (error) {
-        console.error('Error fetching document:', error)
+        console.error('문서 가져오기 실패:', error)
+        console.error('에러 응답:', error.response?.data)
         $q.notify({
           color: 'negative',
           message: '문서를 불러오는 중 오류가 발생했습니다.',
@@ -655,6 +649,11 @@ export default defineComponent({
 
     // 핵심 하이라이팅 함수: segment 안에 token이 포함되어 있으면 분리해서 강조
     const highlightTokensInSegment = (segment, tokens) => {
+      if (!segment || !tokens) {
+        console.warn('segment or tokens is undefined:', { segment, tokens })
+        return []
+      }
+
       const result = []
       let cursor = 0
 
@@ -662,6 +661,11 @@ export default defineComponent({
       const matches = []
 
       for (const token of tokens) {
+        if (!token.word) {
+          console.warn('token.word is undefined:', token)
+          continue
+        }
+
         let startIndex = 0
         while (true) {
           const idx = segment.indexOf(token.word, startIndex)
@@ -671,7 +675,8 @@ export default defineComponent({
             length: token.word.length, 
             word: token.word,
             word_type: token.word_type,
-            dictionary: token.dictionary
+            dictionary: token.dictionary,
+            highlight: true
           })
           startIndex = idx + 1
         }
@@ -822,6 +827,90 @@ export default defineComponent({
       }
     }
 
+    // 디렉토리 트리 데이터 생성
+    const createDirectoryTree = (filePath) => {
+      const parts = filePath.split('/')
+      let currentPath = ''
+      let parentNode = null
+      const tree = []
+      
+      // /data 폴더까지의 경로를 저장
+      const dataIndex = parts.findIndex(part => part === 'data')
+      if (dataIndex !== -1) {
+        basePathParts.value = parts.slice(0, dataIndex + 1)
+        
+        // /data 이후의 경로로 트리 생성
+        const subParts = parts.slice(dataIndex + 1)
+        if (subParts.length > 0) {
+          subParts.forEach((part, index) => {
+            currentPath += (index === 0 ? '' : '/') + part
+            const node = {
+              id: currentPath,
+              label: part,
+              path: currentPath,
+              children: []
+            }
+            
+            if (index === 0) {
+              tree.push(node)
+              parentNode = node
+            } else {
+              parentNode.children.push(node)
+              parentNode = node
+            }
+          })
+        }
+      } else {
+        // /data 폴더가 없는 경우 전체 경로를 트리로 표시
+        basePathParts.value = []
+        parts.forEach((part, index) => {
+          currentPath += (index === 0 ? '' : '/') + part
+          const node = {
+            id: currentPath,
+            label: part,
+            path: currentPath,
+            children: []
+          }
+          
+          if (index === 0) {
+            tree.push(node)
+            parentNode = node
+          } else {
+            parentNode.children.push(node)
+            parentNode = node
+          }
+        })
+      }
+      
+      return tree
+    }
+
+    // 노드 선택 핸들러
+    const handleNodeSelect = (nodeId) => {
+      if (nodeId === 'root') return
+      
+      const node = findNodeById(directoryTree.value, nodeId)
+      if (node && node.path) {
+        // 현재 파일 경로와 다른 경우에만 처리
+        if (node.path !== currentFilePath.value) {
+          currentFilePath.value = node.path
+          fetchDocument(node.path)
+        }
+      }
+    }
+
+    // 노드 ID로 노드 찾기
+    const findNodeById = (nodes, id) => {
+      for (const node of nodes) {
+        if (node.id === id) return node
+        if (node.children && node.children.length > 0) {
+          const found = findNodeById(node.children, id)
+          if (found) return found
+        }
+      }
+      return null
+    }
+
     // URL 쿼리 파라미터에서 file_path 가져오기
     onMounted(() => {
       const urlParams = new URLSearchParams(window.location.search)
@@ -832,6 +921,11 @@ export default defineComponent({
         // URL 디코딩
         const decodedPath = decodeURIComponent(encodedPath)
         console.log('디코딩된 파일 경로:', decodedPath)
+        
+        // 디렉토리 트리 생성
+        directoryTree.value = createDirectoryTree(decodedPath)
+        // 현재 파일 노드 선택
+        selectedNode.value = decodedPath
         
         // 모든 파일 경로 가져오기
         const allFilePaths = urlParams.get('all_file_paths')
@@ -893,6 +987,39 @@ export default defineComponent({
       }
     }
 
+    const fileNameRef = ref(null)
+
+    // 파일 이름 크기 조정 함수
+    const adjustFileNameSize = () => {
+      nextTick(() => {
+        const container = fileNameRef.value?.parentElement
+        const text = fileNameRef.value
+        if (!container || !text) return
+
+        const containerWidth = container.offsetWidth
+        const textWidth = text.scrollWidth
+        const currentFontSize = parseFloat(window.getComputedStyle(text).fontSize)
+        
+        if (textWidth > containerWidth) {
+          const newFontSize = (containerWidth / textWidth) * currentFontSize
+          text.style.fontSize = `${newFontSize}px`
+        } else {
+          text.style.fontSize = ''
+        }
+      })
+    }
+
+    // 파일 이름이 변경될 때마다 크기 조정
+    watch(currentFilePath, () => {
+      adjustFileNameSize()
+    })
+
+    // 창 크기가 변경될 때마다 크기 조정
+    onMounted(() => {
+      window.addEventListener('resize', adjustFileNameSize)
+      adjustFileNameSize()
+    })
+
     return {
       documents,
       currentFilePath,
@@ -920,6 +1047,11 @@ export default defineComponent({
       selectedStopwordsColor,
       meaningColors,
       stopwordsColors,
+      directoryTree,
+      selectedNode,
+      handleNodeSelect,
+      basePathParts,
+      fileNameRef,
     }
   },
 })
@@ -1248,6 +1380,81 @@ export default defineComponent({
 
 .q-card-section.q-pt-none {
   padding-top: 0;
+}
+
+.directory-tree-card {
+  height: calc(100vh - 100px);
+  overflow-y: auto;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  background-color: #fff;
+}
+
+.directory-tree {
+  font-size: 0.9rem;
+  margin-top: 8px;
+}
+
+.directory-tree .q-tree__node {
+  padding: 4px 0;
+}
+
+.directory-tree .q-tree__node--selected {
+  background-color: #e3f2fd;
+  border-radius: 4px;
+}
+
+.directory-tree .q-tree__node-header {
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.directory-tree .q-tree__node-header:hover {
+  background-color: #f5f5f5;
+}
+
+.document-card {
+  height: calc(100vh - 100px);
+  overflow-y: auto;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.path-breadcrumb {
+  padding: 8px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.path-part {
+  color: #666;
+}
+
+.path-part:last-child {
+  color: #1976D2;
+  font-weight: 500;
+}
+
+.file-name-container {
+  width: 100%;
+  overflow: hidden;
+  text-align: center;
+  padding: 0 8px;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.file-name {
+  display: inline-block;
+  white-space: nowrap;
+  transition: font-size 0.2s ease;
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: #333;
 }
 </style>
 

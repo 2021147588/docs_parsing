@@ -34,6 +34,7 @@ class DocumentParsingService:
         logger.info(f"file_dir: {file_dir}")
 
         file_path_list = input_data(file_dir)
+        # /data/ 이후의 경로만 추출
         logger.info(f"{file_dir}에서 찾은 문서 개수: {len(file_path_list)}")
 
         row_counts = []
